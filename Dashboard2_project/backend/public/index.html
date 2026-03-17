@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backoffice · Tienda</title>
+    <!-- Hoja de estilos principal -->
+    <link rel="stylesheet" href="css/estilo.css">
+    <!-- Feather Icons (SVG) -->
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <header class="navbar">
+        <div class="container">
+            <h1 class="logo">backoffice</h1>
+            <nav>
+                <button class="nav-btn active" data-section="clientes">
+                    <i data-feather="users"></i> Clientes
+                </button>
+                <button class="nav-btn" data-section="pedidos">
+                    <i data-feather="shopping-bag"></i> Pedidos
+                </button>
+                <button class="nav-btn" data-section="productos">
+                    <i data-feather="box"></i> Productos
+                </button>
+            </nav>
+        </div>
+    </header>
+ 
+ 
+    <main class="container">
+        <!-- SECCIÓN CLIENTES -->
+        <section id="clientes" class="section active">
+            <h2><i data-feather="users"></i> Clientes</h2>
+            <div class="card">
+                <table id="tabla-clientes">
+                    <thead>
+                        <tr><th>ID</th><th>Nombre</th><th>Email</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+ 
+ 
+        <!-- SECCIÓN PEDIDOS -->
+        <section id="pedidos" class="section">
+            <h2><i data-feather="shopping-bag"></i> Pedidos</h2>
+            <div class="filtros">
+                <button class="filtro-btn active" data-estado="todos">Todos</button>
+                <button class="filtro-btn" data-estado="pendiente">Pendientes</button>
+                <button class="filtro-btn" data-estado="en_camino">En camino</button>
+                <button class="filtro-btn" data-estado="entregado">Entregados</button>
+            </div>
+            <div class="card">
+                <table id="tabla-pedidos">
+                    <thead>
+                        <tr><th>ID</th><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Productos</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+ 
+ 
+        <!-- SECCIÓN PRODUCTOS -->
+        <section id="productos" class="section">
+            <h2><i data-feather="box"></i> Productos</h2>
+            <button class="btn-primary" id="btn-nuevo-producto"><i data-feather="plus"></i> Nuevo producto</button>
+            <div class="card">
+                <table id="tabla-productos">
+                    <thead>
+                        <tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Stock</th><th>Acciones</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+ 
+ 
+        <!-- Modal para formulario de producto (oculto por defecto) -->
+        <div id="modal-producto" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3 id="modal-titulo">Nuevo producto</h3>
+                <form id="form-producto">
+                    <input type="hidden" id="producto-id">
+                    <div class="form-group">
+                        <label for="nombre">Nombre</label>
+                        <input type="text" id="nombre" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="precio">Precio (€)</label>
+                        <input type="number" step="0.01" id="precio" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="stock">Stock</label>
+                        <input type="number" id="stock" required>
+                    </div>
+                    <button type="submit" class="btn-primary">Guardar</button>
+                </form>
+            </div>
+        </div>
+    </main>
+ 
+ 
+    <script src="js/app.js"></script>
+    <script>
+        // Inicializar Feather Icons después de cargar el DOM
+        feather.replace();
+    </script>
+</body>
+</html>

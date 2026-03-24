@@ -5,7 +5,8 @@ $dbname='tienda';
 $username='root';
 $password='';
 
-try{
+try
+{
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
 
     //Exception Manager

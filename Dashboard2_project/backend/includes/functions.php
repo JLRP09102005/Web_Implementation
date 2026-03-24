@@ -43,7 +43,7 @@ function ObtenerPedidos($pdo, $estado=null)
 
     if($estado)
     {
-        $stmt->execute([':estado' => $estado]);       
+        $stmt->execute([':estado' => $estado]);
     }
     else
     {

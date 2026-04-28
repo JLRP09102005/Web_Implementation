@@ -1,3 +1,6 @@
 RewriteEngine On
 
-RewriteCond ^(.*)$ public/$1 [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+RewriteRule ^(.*)$ index.php?url=$1 [QSA, L]

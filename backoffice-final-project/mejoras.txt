@@ -1,0 +1,1 @@
+1.-Anyadir cifrado a la comunicacion entre php y mysql para poder conectarse a base de datos por la red

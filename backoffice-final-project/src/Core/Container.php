@@ -8,9 +8,6 @@ class Container {
     private array $bindings = [];
     private array $instances = [];
 
-    private function __clone() { throw new \Exception("No clonable Container"); }
-    public function __wakeup() { throw new \Exception("No serializable Container"); }
-
     ## This function storage another function referred with a key used as an a ID and execute it if was not executed previously
     public function singleton(string $key, callable $factory): void
     {
@@ -38,6 +35,10 @@ class Container {
 
         return self::$instance;
     }
+
+    public function __clone() { throw new \Exception("No clonable Container"); }
+    public function __sleep() { throw new \Exception("No serializable Container"); }
+    public function __wakeup() { throw new \Exception("No unserializable Container"); }
 
 }
 

@@ -22,9 +22,9 @@ class DBConnection {
         }
     }
 
-    private function __clone() { throw new \Exception("No clonable DBConnection"); }
-    public function __wakeup() { throw new \Exception("No serializable DBConnection"); }
-
+    public function __clone() { throw new \Exception("No clonable DBConnection"); }
+    public function __sleep() { throw new \Exception("No serializable DBConnection"); }
+    public function __wakeup() { throw new \Exception("No unserializable DBConnection"); }
     public function getConnection(): \PDO { return $this->pdo; }
 }
 

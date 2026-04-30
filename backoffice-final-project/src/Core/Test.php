@@ -4,7 +4,11 @@ namespace App\Core;
 
 class Test{
 
-    public static function hola() { return "Funciona!!"; }
+    private string $message;
+
+    public function __construct(string $message) { $this->message = $message; }
+
+    public function hola(): string { return $this->message; }
 
 }
 

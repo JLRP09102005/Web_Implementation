@@ -64,3 +64,13 @@ $router->post('/test/public', function () {
         'body'   => $_POST,
     ]);
 });
+
+$router->get('/login', function () {
+    require_once dirname(__DIR__) . '/views/auth/login.php';
+});
+
+$router->post('/login', function () {
+    header('Content-Type: application/json');
+    // De momento respuesta dummy para probar el JS
+    echo json_encode(['success' => true, 'redirect' => '/test/public']);
+});

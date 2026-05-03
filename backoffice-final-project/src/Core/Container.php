@@ -26,7 +26,7 @@ class Container {
     {
         if (!isset($this->bindings[$key])) { throw new \Exception("No registered: {$key}"); }
 
-        return ($this->bindings[$key]());
+        return ($this->bindings[$key]($this));
     }
 
     public static function getInstance()

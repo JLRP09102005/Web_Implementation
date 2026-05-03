@@ -19,27 +19,27 @@ class Router{
     private array $routes = [];
 
     //Builds a get array for all the posible accesible uri's
-    public function get(string $pattern, array $handler, array|string $roles = self::ROLE_PUBLIC): void
+    public function get(string $pattern, array|\Closure $handler, array|string $roles = self::ROLE_PUBLIC): void
     {
         $this->addRoute('GET', $pattern, $handler, $roles);
     }
 
-    public function post(string $pattern, array $handler, array|string $roles = self::ROLE_AUTHENTICATED): void 
+    public function post(string $pattern, array|\Closure $handler, array|string $roles = self::ROLE_AUTHENTICATED): void 
     {
         $this->addRoute('POST', $pattern, $handler, $roles);
     }
 
-    public function put(string $pattern, array $handler, array|string $roles = self::ROLE_AUTHENTICATED): void
+    public function put(string $pattern, array|\Closure $handler, array|string $roles = self::ROLE_AUTHENTICATED): void
     {
         $this->addRoute('PUT', $pattern, $handler, $roles);
     }
 
-    public function delete(string $pattern, array $handler, array|string $roles = self::ROLE_PUBLIC): void
+    public function delete(string $pattern, array|\Closure $handler, array|string $roles = self::ROLE_PUBLIC): void
     {
         $this->addRoute('DELETE', $pattern, $handler, $roles);
     }
 
-    private function addRoute(string $method, string $pattern, array $handler, array|string $roles): void
+    private function addRoute(string $method, string $pattern, array|\Closure $handler, array|string $roles): void
     {
         [$regex, $params] = $this->compilePattern($pattern);
 
@@ -92,6 +92,8 @@ class Router{
             $this->callHandler($route['handler'], $urlParams);
             return;
         }
+
+        $this->abort(404, 'Route not found');
     }
 
     private function isAuthorized(array $allowedRoles, ?array $sessionUser): bool
@@ -108,8 +110,10 @@ class Router{
         return in_array($userRole, $allowedRoles, true);
     }
 
-    private function callHandler(array $handler, array $urlParams): void
+    private function callHandler(array|\Closure $handler, array $urlParams): void
     {
+        if ($handler instanceof \Closure) { call_user_func($handler, $urlParams); return; }
+
         [$controllerClass, $method] = $handler;
 
         $container = Container::getInstance();

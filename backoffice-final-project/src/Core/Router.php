@@ -89,7 +89,7 @@ class Router{
             array_shift($matches);
             $urlParams = array_combine($route['params'], $matches) ?: [];
 
-            $this->callHanlder($route['handler'], $urlParams);
+            $this->callHandler($route['handler'], $urlParams);
             return;
         }
     }

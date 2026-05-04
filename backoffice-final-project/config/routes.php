@@ -87,3 +87,29 @@ $router->get('/test/db', function () {
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
     }
 });
+
+$router->get('/test/users', function () {
+    $container = \App\Core\Container::getInstance();
+    $pdo = $container->make('db.readonly');
+
+    $stmt = $pdo->query('SELECT iduser, email, role FROM users LIMIT 5');
+    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    header('Content-Type: application/json');
+    echo json_encode([
+        'status' => 'ok',
+        'count'  => count($rows),
+        'rows'   => $rows
+    ]);
+});
+
+$router->get('/test/circuits', function () {
+    $container = \App\Core\Container::getInstance();
+    $pdo = $container->make('db.readonly');
+
+    $stmt = $pdo->query('CALL sp_public_all_circuits()');
+    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    header('Content-Type: application/json');
+    echo json_encode($rows);
+});

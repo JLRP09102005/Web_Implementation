@@ -8,7 +8,7 @@ class DBConnection {
 
     public function __construct(string $host, string $db, string $user, string $pass, string $charset)
     {
-        $dsn = "mysql:host={$host}:dbname={$db}:charset={$charset}";
+        $dsn = "mysql:host={$host};dbname={$db};charset={$charset}";
 
         try
         {

@@ -107,7 +107,7 @@ $router->get('/test/raceleaderboard', function () {
     $container = \App\Core\Container::getInstance();
     $pdo = $container->make('db.readonly');
 
-    $stmt = $pdo->query('CALL sp_public_race_leaderboard');
+    $stmt = $pdo->query('CALL sp_public_race_leaderboard()');
     $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
     header('Content-Type: application/json');

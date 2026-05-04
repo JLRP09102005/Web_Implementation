@@ -90,9 +90,9 @@ $router->get('/test/db', function () {
 
 $router->get('/test/users', function () {
     $container = \App\Core\Container::getInstance();
-    $pdo = $container->make('db.admin');
+    $pdo = $container->make('db.readonly');
 
-    $stmt = $pdo->query('SELECT id_user, email, role FROM users LIMIT 5');
+    $stmt = $pdo->query('SELECT id_user, email FROM users LIMIT 5');
     $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
     header('Content-Type: application/json');
@@ -103,11 +103,11 @@ $router->get('/test/users', function () {
     ]);
 });
 
-$router->get('/test/circuits', function () {
+$router->get('/test/raceleaderboard', function () {
     $container = \App\Core\Container::getInstance();
     $pdo = $container->make('db.readonly');
 
-    $stmt = $pdo->query('CALL sp_public_all_circuits()');
+    $stmt = $pdo->query('CALL sp_public_race_leaderboard');
     $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
     header('Content-Type: application/json');

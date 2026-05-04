@@ -74,3 +74,16 @@ $router->post('/login', function () {
     // De momento respuesta dummy para probar el JS
     echo json_encode(['success' => true, 'redirect' => '/test/public']);
 });
+
+$router->get('/test/db', function () {
+    $container = \App\Core\Container::getInstance();
+    try {
+        $pdo = $container->make('db.readonly');
+        $stmt = $pdo->query('SELECT 1 AS ok');
+        $row  = $stmt->fetch(\PDO::FETCH_ASSOC);
+        echo json_encode(['status' => 'ok', 'db' => 'conectado', 'result' => $row]);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+});

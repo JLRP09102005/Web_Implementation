@@ -92,7 +92,7 @@ $router->get('/test/users', function () {
     $container = \App\Core\Container::getInstance();
     $pdo = $container->make('db.readonly');
 
-    $stmt = $pdo->query('SELECT iduser, email, role FROM users LIMIT 5');
+    $stmt = $pdo->query('SELECT id_user, email, role FROM users LIMIT 5');
     $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
     header('Content-Type: application/json');

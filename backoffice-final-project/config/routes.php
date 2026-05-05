@@ -75,7 +75,7 @@ $router->post('/guest-login', [AuthController::class, 'guestLogin'], Router::ROL
 $router->post('/logout', [AuthController::class, 'logout'], Router::ROLE_AUTHENTICATED);
 
 $router->get('/dashboard', function () {
-    require_once dirname(__DIR__) . '/views/dashboard.php';
+    require_once dirname(__DIR__) . '/views/dashboard/dashboard.php';
 }, Router::ROLE_AUTHENTICATED);
 
 $router->get('/test/db', function () {

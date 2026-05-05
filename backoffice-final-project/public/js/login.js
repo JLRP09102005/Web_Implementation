@@ -60,7 +60,7 @@
 
     function setLoading(on) {
         submitBtn.disabled = on;
-        guestBtn.disabled = on;
+        if (guestBtn) guestBtn.disabled = on;
         btnText.hidden = on;
         btnSpinner.hidden = !on;
     }
@@ -103,33 +103,34 @@
         }
     });
 
-    guestBtn.addEventListener('click', async () => {
-        alertBox.hidden = true;
+    if (guestBtn) {
+        guestBtn.addEventListener('click', async () => {
+            alertBox.hidden = true;
+            clearError(emailInput, emailError);
+            clearError(passInput, passError);
 
-        clearError(emailInput, emailError);
-        clearError(passInput, passError);
+            setLoading(true);
 
-        setLoading(true);
+            try {
+                const res = await fetch('/guest-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
 
-        try {
-            const res = await fetch('/guest-login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-            });
+                const data = await res.json();
 
-            const data = await res.json();
+                if (res.ok && data.success) {
+                    window.location.href = data.redirect ?? '/dashboard';
+                } else {
+                    showAlert(data.message ?? 'No se pudo entrar como invitado.');
+                }
 
-            if (res.ok && data.success) {
-                window.location.href = data.redirect ?? '/dashboard';
-            } else {
-                showAlert(data.message ?? 'No se pudo entrar como invitado.');
+            } catch {
+                showAlert('Error de conexión. Inténtalo de nuevo.');
+            } finally {
+                setLoading(false);
             }
-
-        } catch {
-            showAlert('Error de conexión. Inténtalo de nuevo.');
-        } finally {
-            setLoading(false);
-        }
-    });
+        });
+    }
 
 })();

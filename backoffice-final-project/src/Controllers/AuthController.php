@@ -6,7 +6,7 @@ use App\Core\Container;
 
 class AuthController{
     
-    private function __construct() {}
+    public function __construct() {}
 
     public function __clone() { throw new \Exception("No clonable AuthController"); }
     public function __sleep() { throw new \Exception("No serializable AuthController"); }
@@ -74,10 +74,7 @@ class AuthController{
         ];
 
         http_response_code(200);
-        echo json_encode([
-            'success' => true,
-            'redirect' => '/dashboard'
-        ]);
+        echo json_encode(['success' => true, 'redirect' => '/dashboard']);
     }
 
     public function logout(array $urlParams): void

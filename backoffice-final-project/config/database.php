@@ -2,6 +2,7 @@
 
 use App\Core\DBConnection;
 use App\Models\User;
+use App\Controllers\AuthController;
 
 ##Check if the variables $container and $env are defined before use it
 if (!isset($container) || !isset($env)) { throw new \Exception("database.php require \$container \$env previously defined"); }
@@ -21,6 +22,10 @@ $container->singleton('db.admin', function() use ($env){
 $container->singleton(User::class, function($c) use ($env){
     $domains = explode(',', $env['ALLOWED_DOMAINS']);
     return new User($c->make('db.readonly'), $domains);
+});
+
+$container->singleton(AuthController::class, function($c) use ($env){
+    return new AuthController();
 });
 
 ?>

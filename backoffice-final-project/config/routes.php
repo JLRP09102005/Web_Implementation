@@ -9,6 +9,7 @@
  */
 
 use App\Core\Router;
+use App\Controllers\AuthController;
 
 // -----------------------------------------------------------------------------
 // RUTA PÚBLICA — sin autenticación
@@ -69,11 +70,12 @@ $router->get('/login', function () {
     require_once dirname(__DIR__) . '/views/auth/login.php';
 });
 
-$router->post('/login', function () {
-    header('Content-Type: application/json');
-    // De momento respuesta dummy para probar el JS
-    echo json_encode(['success' => true, 'redirect' => '/test/public']);
-});
+$router->post('/login',  [AuthController::class, 'login'],  Router::ROLE_PUBLIC);
+$router->post('/logout', [AuthController::class, 'logout'], Router::ROLE_AUTHENTICATED);
+
+$router->get('/dashboard', function () {
+    require_once dirname(__DIR__) . '/views/dashboard.php';
+}, Router::ROLE_AUTHENTICATED);
 
 $router->get('/test/db', function () {
     $container = \App\Core\Container::getInstance();

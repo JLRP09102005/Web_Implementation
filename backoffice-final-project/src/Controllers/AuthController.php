@@ -59,6 +59,27 @@ class AuthController{
         echo json_encode(['success'  => true, 'redirect' => '/dashboard']);
     }
 
+    public function guestLogin(array $urlParams): void
+    {
+        header('Content-Type: application/json');
+
+        session_regenerate_id(true);
+
+        $_SESSION['user'] = [
+            'id' => 0,
+            'username' => 'Guest',
+            'email' => null,
+            'role' => 'readonly-public',
+            'team_id' => null,
+        ];
+
+        http_response_code(200);
+        echo json_encode([
+            'success' => true,
+            'redirect' => '/dashboard'
+        ]);
+    }
+
     public function logout(array $urlParams): void
     {
         header('Content-Type: application/json');

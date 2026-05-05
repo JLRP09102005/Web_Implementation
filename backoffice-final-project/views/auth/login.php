@@ -19,10 +19,9 @@
                       stroke-linecap="round" stroke-linejoin="round" fill="none"/>
             </svg>
             <h1>WEC Panel</h1>
-            <p class="subtitle">Accede con tu cuenta</p>
+            <p class="subtitle">Accede con tu cuenta o entra como invitado</p>
         </div>
 
-        <!-- Mensaje de error (oculto por defecto, JS lo muestra) -->
         <div class="alert alert-error" id="loginError" role="alert" hidden>
             <span id="loginErrorMsg">Credenciales incorrectas.</span>
         </div>
@@ -54,13 +53,11 @@
                         required
                     >
                     <button type="button" class="toggle-pass" id="togglePass" aria-label="Mostrar contraseña">
-                        <!-- Ojo abierto -->
                         <svg id="iconShow" width="18" height="18" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                             <circle cx="12" cy="12" r="3"/>
                         </svg>
-                        <!-- Ojo cerrado (oculto por defecto) -->
                         <svg id="iconHide" width="18" height="18" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                              style="display:none">
@@ -82,6 +79,10 @@
                                  M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
                     </svg>
                 </span>
+            </button>
+
+            <button type="button" class="btn-guest" id="guestBtn">
+                Entrar como invitado
             </button>
 
         </form>

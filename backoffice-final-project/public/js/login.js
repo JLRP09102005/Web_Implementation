@@ -8,6 +8,7 @@
     const emailError = document.getElementById('emailError');
     const passError  = document.getElementById('passwordError');
     const submitBtn  = document.getElementById('submitBtn');
+    const guestBtn   = document.getElementById('guestBtn');
     const btnText    = submitBtn.querySelector('.btn-text');
     const btnSpinner = submitBtn.querySelector('.btn-spinner');
     const alertBox   = document.getElementById('loginError');
@@ -18,7 +19,7 @@
 
     togglePass.addEventListener('click', () => {
         const isPassword = passInput.type === 'password';
-        passInput.type   = isPassword ? 'text' : 'password';
+        passInput.type = isPassword ? 'text' : 'password';
         iconShow.style.display = isPassword ? 'none' : '';
         iconHide.style.display = isPassword ? '' : 'none';
         togglePass.setAttribute('aria-label', isPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
@@ -59,6 +60,7 @@
 
     function setLoading(on) {
         submitBtn.disabled = on;
+        guestBtn.disabled = on;
         btnText.hidden = on;
         btnSpinner.hidden = !on;
     }
@@ -92,6 +94,35 @@
                 window.location.href = data.redirect ?? '/dashboard';
             } else {
                 showAlert(data.message ?? 'Credenciales incorrectas.');
+            }
+
+        } catch {
+            showAlert('Error de conexión. Inténtalo de nuevo.');
+        } finally {
+            setLoading(false);
+        }
+    });
+
+    guestBtn.addEventListener('click', async () => {
+        alertBox.hidden = true;
+
+        clearError(emailInput, emailError);
+        clearError(passInput, passError);
+
+        setLoading(true);
+
+        try {
+            const res = await fetch('/guest-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                window.location.href = data.redirect ?? '/dashboard';
+            } else {
+                showAlert(data.message ?? 'No se pudo entrar como invitado.');
             }
 
         } catch {

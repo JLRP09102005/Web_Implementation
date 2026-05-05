@@ -71,6 +71,7 @@ $router->get('/login', function () {
 });
 
 $router->post('/login',  [AuthController::class, 'login'],  Router::ROLE_PUBLIC);
+$router->post('/guest-login', [AuthController::class, 'guestLogin'], Router::ROLE_PUBLIC);
 $router->post('/logout', [AuthController::class, 'logout'], Router::ROLE_AUTHENTICATED);
 
 $router->get('/dashboard', function () {

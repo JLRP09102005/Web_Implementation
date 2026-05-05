@@ -13,9 +13,9 @@ class App{
 
     public static function getInstance(): self
     {
-        if (!isset($instance)) { $instance = new App(); }
+        if (!isset(self::$instance)) { self::$instance = new App(); }
         
-        return $instance;
+        return self::$instance;
     }
 
     public function __clone() { throw new \Exception("No clonable Container"); }
@@ -42,7 +42,7 @@ class App{
 
     private function startSession(): void
     {
-        if (session_start() === PHP_SESSION_ACTIVE) { return; }
+        if (session_status() === PHP_SESSION_ACTIVE) { return; }
 
         session_set_cookie_params([
             'lifetime' => 0,

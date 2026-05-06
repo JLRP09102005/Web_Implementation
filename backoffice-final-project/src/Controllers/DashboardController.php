@@ -133,6 +133,22 @@ class DashboardController {
         $role = $user['role'];
         $userId = (int)$user['id'];
 
+        try
+        {
+
+            if(in_array($role, ['software-administrator', 'administratorDB'])) { $rows = $this->raceModel->getAllAdmin($userId); }
+            elseif($role === 'data-analyst') { $rows = $this->raceModel->getAllAnalyst($userId); }
+            elseif($role === 'comissioner-boss') { $rows = $this->raceModel->getAllComissioner($userId); }
+            elseif($role === 'race-director') { $rows = $this->raceModel->getAllRaceDirector($userId); }
+            elseif($role === 'mechanical-boss') { $rows = $this->raceModel->getAllMechanical($userId); }
+            elseif($role === 'team-manager') { $rows = $this->raceModel->getAllTeamManager($userId); }
+            else { $rows = $this->raceModel->getPublicCalendar(); }
+
+            $this->json($rows);
+
+        } catch(\Throwable $e){
+            $this->json(['error' => 500, 'message' => $e->getMessage()]);
+        }
     }
 
 }

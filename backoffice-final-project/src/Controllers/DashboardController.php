@@ -151,6 +151,34 @@ class DashboardController {
         }
     }
 
+    // ── GET /api/vehicles ─────────────────────────────────────
+    public function vehicles(array $urlParams): void
+    {
+        $this->requireAuth();
+        $user   = $this->session();
+        $role   = $user['role'];
+        $userId = (int)$user['id'];
+
+        try {
+            $rows = match(true) {
+                in_array($role, ['software-administrator', 'administratorDB'])
+                    => $this->vehicleModel->getAllAdmin($userId),
+                $role === 'data-analyst'
+                    => $this->vehicleModel->getAllAnalyst($userId),
+                $role === 'mechanical-boss'
+                    => $this->vehicleModel->getMyMechanical($userId),
+                $role === 'manufacturer-representative'
+                    => $this->vehicleModel->getMyManufacturer($userId),
+                $role === 'team-manager'
+                    => $this->vehicleModel->getMyTeamManager($userId),
+                default => [],
+            };
+            $this->json($rows);
+        } catch (\Throwable $e) {
+            $this->json(['error' => 500, 'message' => $e->getMessage()]);
+        }
+    }
+
 }
 
 ?>

@@ -235,6 +235,20 @@ class DashboardController {
         }
     }
 
+    // ── GET /api/manufacturer ─────────────────────────────────
+    public function manufacturer(array $urlParams): void
+    {
+        $this->requireAuth();
+        $userId = (int)$this->session()['id'];
+
+        try {
+            $data = $this->manufacturerModel->getMyData($userId);
+            $this->json($data ?: ['error' => 404, 'message' => 'Sin datos de fabricante']);
+        } catch (\Throwable $e) {
+            $this->json(['error' => 500, 'message' => $e->getMessage()]);
+        }
+    }
+
 }
 
 ?>

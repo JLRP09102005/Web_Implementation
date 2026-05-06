@@ -179,6 +179,32 @@ class DashboardController {
         }
     }
 
+    // ── GET /api/penalties ────────────────────────────────────
+    public function penalties(array $urlParams): void
+    {
+        $this->requireAuth();
+        $user   = $this->session();
+        $role   = $user['role'];
+        $userId = (int)$user['id'];
+
+        try {
+            $rows = match(true) {
+                in_array($role, ['software-administrator', 'administratorDB'])
+                    => $this->penaltyModel->getAllAdmin($userId),
+                $role === 'data-analyst'
+                    => $this->penaltyModel->getAllAnalyst($userId),
+                $role === 'commissioner-boss'
+                    => $this->penaltyModel->getAllCommissioner($userId),
+                $role === 'race-director'
+                    => $this->penaltyModel->getAllRaceDirector($userId),
+                default => [],
+            };
+            $this->json($rows);
+        } catch (\Throwable $e) {
+            $this->json(['error' => 500, 'message' => $e->getMessage()]);
+        }
+    }
+
 }
 
 ?>

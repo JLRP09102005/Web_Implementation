@@ -99,6 +99,29 @@ class DashboardController {
         }
     }
 
+    // ── GET /api/pilots ─────────────────────────────────────
+    public function pilots(array $urlParams): void
+    {
+        $this->requireAuth();
+        $user = $_SESSION['user'];
+        $role = $user['role'];
+        $userId = (int)$user['id'];
+
+        try
+        {
+
+            if(in_array($role, ['software-administrator', 'administratorDB'])) { $rows = $this->call('sp_admin_all_pilots', [$userId]); }
+            elseif($role === 'data-analyst') { $rows = $this->call('sp_analyst_all_pilots', [$userId]); }
+            elseif($role === 'team_manager') { $rows = $this->call('sp_teammanager_my_pilots', [$userId]); }
+            else { $rows = $this->call('sp_public_pilots_list'); }
+
+            $this->json($rows);
+
+        } catch (\Throwable $e) {
+            $this->json(['error' => 500, 'message' => $e->getMessage()]);
+        }
+    }
+
 }
 
 ?>

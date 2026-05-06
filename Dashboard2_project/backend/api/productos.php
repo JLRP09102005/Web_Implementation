@@ -102,7 +102,7 @@ try{
         break;
     }
 }
-catch(){
-    
+catch(\Throwable $e){
+    http_response_code(400);
 }
 ?>

@@ -122,6 +122,15 @@ class DashboardController {
         }
     }
 
+    // ── GET /api/races ──────────────────────────────────────
+    public function races(array $urlParams): void
+    {
+        $this->requireAuth();
+        $user = $_SESSION['user'];
+        $role = $user['role'];
+        $userId = $user['id'];
+    }
+
 }
 
 ?>

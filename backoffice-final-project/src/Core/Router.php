@@ -73,7 +73,7 @@ class Router{
 
     public function dispatch(?array $sessionUser = null): void
     {
-        if (! isset($_SERVER['REQUEST_METHOD'])) { $method = 'GET'; }
+        if (!isset($_SERVER['REQUEST_METHOD'])) { $method = 'GET'; }
         else { $method = $_SERVER['REQUEST_METHOD']; }
         
         $uri = $this->parseUri();

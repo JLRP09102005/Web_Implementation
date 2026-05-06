@@ -78,41 +78,24 @@ $router->get('/dashboard', function () {
     require_once dirname(__DIR__) . '/views/dashboard/dashboard.php';
 }, Router::ROLE_AUTHENTICATED);
 
-$router->get('/test/db', function () {
-    $container = \App\Core\Container::getInstance();
-    try {
-        $pdo = $container->make('db.readonly');
-        $stmt = $pdo->query('SELECT 1 AS ok');
-        $row  = $stmt->fetch(\PDO::FETCH_ASSOC);
-        echo json_encode(['status' => 'ok', 'db' => 'conectado', 'result' => $row]);
-    } catch (\Exception $e) {
-        http_response_code(500);
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+$router->get('/', function () {
+    if (isset($_SESSION['user'])) {
+        header('Location: /dashboard');
+    } else {
+        header('Location: /login');
     }
+    exit;
 });
 
-$router->get('/test/users', function () {
-    $container = \App\Core\Container::getInstance();
+$router->get('/api/public/race-calendar', function () {
+    header('Content-Type: application/json');
+
+    $container = App\Core\Container::getInstance();
     $pdo = $container->make('db.readonly');
 
-    $stmt = $pdo->query('SELECT id_user, email FROM users LIMIT 5');
+    $stmt = $pdo->query('CALL sp_public_race_calendar()');
+    $stmt->execute();
     $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-    header('Content-Type: application/json');
-    echo json_encode([
-        'status' => 'ok',
-        'count'  => count($rows),
-        'rows'   => $rows
-    ]);
-});
-
-$router->get('/test/racecalendar', function () {
-    $container = \App\Core\Container::getInstance();
-    $pdo = $container->make('db.readonly');
-
-    $stmt = $pdo->query('CALL sp_public_race_calendar');
-    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-    header('Content-Type: application/json');
     echo json_encode($rows);
 });

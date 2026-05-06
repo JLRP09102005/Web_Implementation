@@ -129,6 +129,7 @@ class DashboardController {
         $user = $_SESSION['user'];
         $role = $user['role'];
         $userId = $user['id'];
+        
     }
 
 }

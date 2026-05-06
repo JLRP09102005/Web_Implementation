@@ -3,6 +3,7 @@
 use App\Core\DBConnection;
 use App\Models\User;
 use App\Controllers\AuthController;
+use App\Controllers\DashboardController;
 
 ##Check if the variables $container and $env are defined before use it
 if (!isset($container) || !isset($env)) { throw new \Exception("database.php require \$container \$env previously defined"); }
@@ -26,6 +27,10 @@ $container->singleton(User::class, function($c) use ($env){
 
 $container->singleton(AuthController::class, function($c) use ($env){
     return new AuthController();
+});
+
+$container->singleton(DashboardController::class, function ($c) use ($env){
+    return new DashboardController();
 });
 
 ?>

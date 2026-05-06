@@ -155,25 +155,22 @@ class DashboardController {
     public function vehicles(array $urlParams): void
     {
         $this->requireAuth();
-        $user   = $this->session();
-        $role   = $user['role'];
+        $user = $this->session();
+        $role = $user['role'];
         $userId = (int)$user['id'];
 
-        try {
-            $rows = match(true) {
-                in_array($role, ['software-administrator', 'administratorDB'])
-                    => $this->vehicleModel->getAllAdmin($userId),
-                $role === 'data-analyst'
-                    => $this->vehicleModel->getAllAnalyst($userId),
-                $role === 'mechanical-boss'
-                    => $this->vehicleModel->getMyMechanical($userId),
-                $role === 'manufacturer-representative'
-                    => $this->vehicleModel->getMyManufacturer($userId),
-                $role === 'team-manager'
-                    => $this->vehicleModel->getMyTeamManager($userId),
-                default => [],
-            };
+        try 
+        {
+
+            if(in_array($role, ['software-administrator', 'administratorDB'])) { $rows = $this->vehicleModel->getAllAdmin($userId); }
+            elseif($role === 'data-analyst') { $rows = $this->vehicleModel->getAllAnalyst($userId); }
+            elseif($role === 'mechanical-boss') { $rows = $this->vehicleModel->getMyMechanical($userId); }
+            elseif($role === 'manufacturer-representative') { $rows = $this->vehicleModel->getMyManufacturer($userId); }
+            elseif($role === 'team-manager') { $rows = $this->vehicleModel->getMyTeamManager($userId); }
+            else { $rows = []; }
+
             $this->json($rows);
+
         } catch (\Throwable $e) {
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
@@ -183,23 +180,21 @@ class DashboardController {
     public function penalties(array $urlParams): void
     {
         $this->requireAuth();
-        $user   = $this->session();
-        $role   = $user['role'];
+        $user = $this->session();
+        $role = $user['role'];
         $userId = (int)$user['id'];
 
-        try {
-            $rows = match(true) {
-                in_array($role, ['software-administrator', 'administratorDB'])
-                    => $this->penaltyModel->getAllAdmin($userId),
-                $role === 'data-analyst'
-                    => $this->penaltyModel->getAllAnalyst($userId),
-                $role === 'commissioner-boss'
-                    => $this->penaltyModel->getAllCommissioner($userId),
-                $role === 'race-director'
-                    => $this->penaltyModel->getAllRaceDirector($userId),
-                default => [],
-            };
+        try 
+        {
+
+            if(in_array($role, ['software-administrator', 'administratorDB'])) { $rows = $this->penaltyModel->getAllAdmin($userId); }
+            elseif($role === 'data-analyst') { $rows = $this->penaltyModel->getAllAnalyst($userId); }
+            elseif($role === 'comissioner-boss') { $rows = $this->penaltyModel->getAllCommissioner($userId); }
+            elseif($role === 'race-director') { $rows = $this->penaltyModel->getAllRaceDirector($userId); }
+            else { $rows = []; }
+
             $this->json($rows);
+
         } catch (\Throwable $e) {
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
@@ -209,27 +204,23 @@ class DashboardController {
     public function results(array $urlParams): void
     {
         $this->requireAuth();
-        $user   = $this->session();
-        $role   = $user['role'];
+        $user = $this->session();
+        $role = $user['role'];
         $userId = (int)$user['id'];
 
-        try {
-            $rows = match(true) {
-                in_array($role, ['software-administrator', 'administratorDB'])
-                    => $this->resultModel->getAllAdmin($userId),
-                $role === 'data-analyst'
-                    => $this->resultModel->getAllAnalyst($userId),
-                $role === 'commissioner-boss'
-                    => $this->resultModel->getAllCommissioner($userId),
-                $role === 'race-director'
-                    => $this->resultModel->getAllRaceDirector($userId),
-                $role === 'team-manager'
-                    => $this->resultModel->getMyTeamManager($userId),
-                $role === 'pilot'
-                    => $this->resultModel->getMyPilot($userId),
-                default => [],
-            };
+        try 
+        {
+
+            if(in_array($role, ['software-administrator', 'administratorDB'])) { $rows = $this->resultModel->getAllAdmin($userId); }
+            elseif($role === 'data-analyst') { $rows = $this->resultModel->getAllAnalyst($userId); }
+            elseif($role == 'comissioner-boss') { $rows = $this->resultModel->getAllCommissioner($userId); }
+            elseif($role === 'race-director') { $rows = $this->resultModel->getAllRaceDirector($userId); }
+            elseif($role === 'team-manager') { $rows = $this->resultModel->getMyTeamManager($userId); }
+            elseif($role === 'pilot') { $rows = $this->resultModel->getMyPilot($userId); }
+            else { $rows = []; }
+
             $this->json($rows);
+
         } catch (\Throwable $e) {
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
@@ -241,9 +232,12 @@ class DashboardController {
         $this->requireAuth();
         $userId = (int)$this->session()['id'];
 
-        try {
+        try 
+        {
+
             $data = $this->manufacturerModel->getMyData($userId);
-            $this->json($data ?: ['error' => 404, 'message' => 'Sin datos de fabricante']);
+            $this->json($data ?: ['error' => 404, 'message' => 'No manufacturer data']);
+
         } catch (\Throwable $e) {
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }

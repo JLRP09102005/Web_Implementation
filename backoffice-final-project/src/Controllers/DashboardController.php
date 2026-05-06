@@ -205,6 +205,36 @@ class DashboardController {
         }
     }
 
+    // ── GET /api/results ──────────────────────────────────────
+    public function results(array $urlParams): void
+    {
+        $this->requireAuth();
+        $user   = $this->session();
+        $role   = $user['role'];
+        $userId = (int)$user['id'];
+
+        try {
+            $rows = match(true) {
+                in_array($role, ['software-administrator', 'administratorDB'])
+                    => $this->resultModel->getAllAdmin($userId),
+                $role === 'data-analyst'
+                    => $this->resultModel->getAllAnalyst($userId),
+                $role === 'commissioner-boss'
+                    => $this->resultModel->getAllCommissioner($userId),
+                $role === 'race-director'
+                    => $this->resultModel->getAllRaceDirector($userId),
+                $role === 'team-manager'
+                    => $this->resultModel->getMyTeamManager($userId),
+                $role === 'pilot'
+                    => $this->resultModel->getMyPilot($userId),
+                default => [],
+            };
+            $this->json($rows);
+        } catch (\Throwable $e) {
+            $this->json(['error' => 500, 'message' => $e->getMessage()]);
+        }
+    }
+
 }
 
 ?>

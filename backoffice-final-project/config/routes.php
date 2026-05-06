@@ -10,6 +10,7 @@
 
 use App\Core\Router;
 use App\Controllers\AuthController;
+use App\Controllers\DashboardController;
 
 // -----------------------------------------------------------------------------
 // RUTA PÚBLICA — sin autenticación
@@ -99,3 +100,13 @@ $router->get('/api/public/race-calendar', function () {
 
     echo json_encode($rows);
 });
+
+// ── API routes Dashboard ─────────────────────────────────
+$router->get('/api/overview',     [DashboardController::class, 'overview'],     Router::ROLE_AUTHENTICATED);
+$router->get('/api/pilots',       [DashboardController::class, 'pilots'],       Router::ROLE_AUTHENTICATED);
+$router->get('/api/races',        [DashboardController::class, 'races'],        Router::ROLE_AUTHENTICATED);
+$router->get('/api/teams',        [DashboardController::class, 'teams'],        Router::ROLE_AUTHENTICATED);
+$router->get('/api/vehicles',     [DashboardController::class, 'vehicles'],     Router::ROLE_AUTHENTICATED);
+$router->get('/api/penalties',    [DashboardController::class, 'penalties'],    Router::ROLE_AUTHENTICATED);
+$router->get('/api/results',      [DashboardController::class, 'results'],      Router::ROLE_AUTHENTICATED);
+$router->get('/api/manufacturer', [DashboardController::class, 'manufacturer'], Router::ROLE_AUTHENTICATED);

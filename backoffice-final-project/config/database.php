@@ -32,44 +32,37 @@ $container->singleton(User::class, function($c) use ($env){
     return new User($c->make('db.readonly'), $domains);
 });
 
-$container->singleton(AuthController::class, function($c) use ($env){
-    return new AuthController();
-});
+$container->singleton(RaceModel::class,
+    fn($c) => new RaceModel($c->make('db.readonly')));
 
-$container->singleton(RaceModel::class, function($c) use ($env){
-    return new RaceModel($c->make('db.readonly'));
-});
+$container->singleton(PilotModel::class,
+    fn($c) => new PilotModel($c->make('db.readonly')));
 
-$container->singleton(PilotModel::class, function($c) use ($env){
-    return new PilotModel($c->make('db.readonly'));
-});
+$container->singleton(TeamModel::class,
+    fn($c) => new TeamModel($c->make('db.readonly')));
 
-$container->singleton(TeamModel::class, function($c) use ($env){
-    return new TeamModel($c->make('db.readonly'));
-});
+$container->singleton(VehicleModel::class,
+    fn($c) => new VehicleModel($c->make('db.readonly')));
 
-$container->singleton(VehicleModel::class, function($c) use ($env){
-    return new VehicleModel($c->make('db.readonly'));
-});
+$container->singleton(PenaltyModel::class,
+    fn($c) => new PenaltyModel($c->make('db.readonly')));
 
-$container->singleton(PenaltyModel::class, function($c) use ($env){
-    return new PenaltyModel($c->make('db.readonly'));
-});
+$container->singleton(ResultModel::class,
+    fn($c) => new ResultModel($c->make('db.readonly')));
 
-$container->singleton(ResultModel::class, function($c) use ($env){
-    return new ManufacturerModel($c->make('db.readonly'));
-});
+$container->singleton(ManufacturerModel::class,
+    fn($c) => new ManufacturerModel($c->make('db.readonly')));
 
-$container->singleton(DashboardController::class, function($c) use ($env){
-    return new DashboardController(
+$container->singleton(DashboardController::class,
+    fn($c) => new DashboardController(
         $c->make(RaceModel::class),
         $c->make(PilotModel::class),
         $c->make(TeamModel::class),
         $c->make(VehicleModel::class),
         $c->make(PenaltyModel::class),
         $c->make(ResultModel::class),
-        $c->make(ManufacturerModel::class)
-    );
-});
+        $c->make(ManufacturerModel::class),
+    )
+);
 
 ?>

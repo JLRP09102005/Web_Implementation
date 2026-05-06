@@ -60,8 +60,8 @@ class DashboardController {
         try
         {
 
-            $races = $this->call('sp_public_race_calendar');
-            $pilots = $this->call('sp_public_pilots_list');
+            $races = $this->raceModel->getPublicCalendar();
+            $pilots = $this->pilotModel->getPublicList();
 
             $teams = [];
             $vehicles = [];

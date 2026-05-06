@@ -3,10 +3,25 @@
 namespace App\Controllers;
 
 use App\Core\Container;
+use App\Models\RaceModel;
+use App\Models\PilotModel;
+use App\Models\TeamModel;
+use App\Models\VehicleModel;
+use App\Models\PenaltyModel;
+use App\Models\ResultModel;
+use App\Models\ManufacturerModel;
 
 class DashboardController {
 
-    public function __construct() {}
+    public function __construct(
+        private RaceModel $raceModel,
+        private PilotModel $pilotModel,
+        private TeamModel $teamModel,
+        private VehicleModel $vehicleModel,
+        private PenaltyModel $penaltyModel,
+        private ResultModel $resultModel,
+        private ManufacturerModel $manufacturerModel
+    ) {}
     public function __clone() { throw new \Exception("No clonable DashboardController"); }
     public function __sleep() { throw new \Exception("No serializable DashboardController"); }
     public function __wakeup() { throw new \Exception("No unserializable DashboardController"); }
@@ -29,27 +44,18 @@ class DashboardController {
         exit;
     }
 
-    private function pdo(): \PDO
+    private function session(): array
     {
-        return Container::getInstance()->make('db.readonly');
-    }
-
-    private function call(string $sp, array $params = []): array
-    {
-        $pdo = $this->pdo();
-        $ph = implode(',', array_fill(0, count($params), '?'));
-        $stmt = $pdo->prepare("CALL {$sp}(" . ($ph ?: '') . ")");
-        $stmt->execute($params);
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        $stmt->closeCursor();
-        return $rows;
+        return $_SESSION['user'];
     }
 
     // ── GET /api/overview ───────────────────────────────────
     public function overview(array $urlParams): void
     {
         $this->requireAuth();
-        $user = $_SESSION['user'];
+        $user = $this->session();
+        $role = $user['role'];
+        $userId = (int)$user['id'];
 
         try
         {
@@ -61,28 +67,25 @@ class DashboardController {
             $vehicles = [];
             $penalties = [];
 
-            $role = $user['role'];
-            $userId = (int)$user['id'];
-
             if (in_array($role, ['software-administrator', 'administratorDB']))
             {
-                $teams = $this->call('sp_admin_all_teams', [$userId]);
-                $vehicles = $this->call('sp_admin_all_vehicles', [$userId]);
-                $penalties = $this->call('sp_admin_all_penalties', [$userId]);
+                $teams = $this->teamModel->getAllAdmin($userId);
+                $vehicles = $this->vehicleModel->getAllAdmin($userId);
+                $penalties = $this->penaltyModel->getAllAdmin($userId);
             }
             elseif ($role === 'data-analyst')
             {
-                $teams = $this->call('sp_analyst_all_teams', [$userId]);
-                $vehicles = $this->call('sp_analyst_all_vehicles', [$userId]);
-                $penalties = $this->call('sp_analyst_all_penalties', [$userId]);
+                $teams = $this->teamModel->getAllAnalyst($userId);
+                $vehicles = $this->vehicleModel->getAllAnalyst($userId);
+                $penalties = $this->penaltyModel->getAllAnalyst($userId);
             }
             elseif ($role === 'comissioner-boss')
             {
-                $penalties = $this->call('sp_commissioner_all_penalties', [$userId]);
+                $penalties = $this->penaltyModel->getAllCommissioner($userId);
             }
             elseif ($role === 'race-director')
             {
-                $penalties = $this->call('sp_racedirector_all_penalties', [$userId]);
+                $penalties = $this->penaltyModel->getAllRaceDirector($userId);
             }
 
             $this->json([
@@ -110,10 +113,10 @@ class DashboardController {
         try
         {
 
-            if(in_array($role, ['software-administrator', 'administratorDB'])) { $rows = $this->call('sp_admin_all_pilots', [$userId]); }
-            elseif($role === 'data-analyst') { $rows = $this->call('sp_analyst_all_pilots', [$userId]); }
-            elseif($role === 'team_manager') { $rows = $this->call('sp_teammanager_my_pilots', [$userId]); }
-            else { $rows = $this->call('sp_public_pilots_list'); }
+            if(in_array($role, ['software-administrator', 'administratorDB'])) { $rows = $this->pilotModel->getAllAdmin($userId); }
+            elseif($role === 'data-analyst') { $rows = $this->pilotModel->getAllAnalyst($userId); }
+            elseif($role === 'team_manager') { $rows = $this->pilotModel->getAllTeamManager($userId); }
+            else { $rows = $this->pilotModel->getPublicList(); }
 
             $this->json($rows);
 
@@ -128,8 +131,8 @@ class DashboardController {
         $this->requireAuth();
         $user = $_SESSION['user'];
         $role = $user['role'];
-        $userId = $user['id'];
-        
+        $userId = (int)$user['id'];
+
     }
 
 }

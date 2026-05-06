@@ -2,10 +2,17 @@
 
 use App\Core\DBConnection;
 use App\Models\User;
+use App\Models\RaceModel;
+use App\Models\PilotModel;
+use App\Models\TeamModel;
+use App\Models\VehicleModel;
+use App\Models\PenaltyModel;
+use App\Models\ResultModel;
+use App\Models\ManufacturerModel;
 use App\Controllers\AuthController;
 use App\Controllers\DashboardController;
 
-##Check if the variables $container and $env are defined before use it
+##Check if the variables $container and $env are defined before use them
 if (!isset($container) || !isset($env)) { throw new \Exception("database.php require \$container \$env previously defined"); }
 
 $container->singleton('db.readonly', function() use ($env){
@@ -30,7 +37,15 @@ $container->singleton(AuthController::class, function($c) use ($env){
 });
 
 $container->singleton(DashboardController::class, function ($c) use ($env){
-    return new DashboardController();
+    return new DashboardController(
+        $c->make(RaceModel::class),
+        $c->make(PilotModel::class),
+        $c->make(TeamModel::class),
+        $c->make(VehicleModel::class),
+        $c->make(PenaltyModel::class),
+        $c->make(ResultModel::class),
+        $c->make(ManufacturerModel::class)
+    );
 });
 
 ?>

@@ -32,6 +32,10 @@ $container->singleton(User::class, function($c) use ($env){
     return new User($c->make('db.readonly'), $domains);
 });
 
+$container->singleton(AuthController::class, function($c) use ($env){
+    return new AuthController();
+});
+
 $container->singleton(RaceModel::class,
     fn($c) => new RaceModel($c->make('db.readonly')));
 
@@ -53,6 +57,7 @@ $container->singleton(ResultModel::class,
 $container->singleton(ManufacturerModel::class,
     fn($c) => new ManufacturerModel($c->make('db.readonly')));
 
+// ── Controlador (recibe los modelos por inyección) ───────────
 $container->singleton(DashboardController::class,
     fn($c) => new DashboardController(
         $c->make(RaceModel::class),

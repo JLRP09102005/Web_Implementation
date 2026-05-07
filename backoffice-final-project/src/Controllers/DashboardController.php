@@ -62,8 +62,8 @@ class DashboardController {
 
             $races = $this->raceModel->getPublicCalendar();
             $pilots = $this->pilotModel->getPublicList();
+            $teams = $this->teamModel->getPublicList();
 
-            $teams = [];
             $vehicles = [];
             $penalties = [];
 

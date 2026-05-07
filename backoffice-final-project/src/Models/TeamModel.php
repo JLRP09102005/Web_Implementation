@@ -4,6 +4,11 @@ namespace App\Models;
 
 class TeamModel extends BaseModel{
 
+    public function getPublicList(): array
+    {
+        return $this->call('sp_public_teams_list');
+    }
+
     public function getAllAdmin(int $userId): array
     {
         return $this->call('sp_admin_all_teams', [$userId]);

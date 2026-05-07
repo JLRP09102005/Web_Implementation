@@ -58,8 +58,6 @@ $navDef = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WEC · Panel de Control</title>
     <link rel="stylesheet" href="/public/css/dashboard.css">
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
 
@@ -466,13 +464,15 @@ $navDef = [
 </main>
 
 <!-- Datos para JS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"></script>
 <script>
-window.WEC = {
-    userId: <?= $userId ?>,
-    role:   <?= json_encode($role) ?>,
-    visible: <?= json_encode($visible) ?>
-};
+    window.WEC = {
+        userId: <?= $userId ?>,
+        role:   <?= json_encode($role) ?>,
+        visible: <?= json_encode($visible) ?>
+    };
 </script>
-<script src="/public/js/dashboard.js" defer></script>
+<script src="/public/js/dashboard.js"></script>
 </body>
 </html>

@@ -64,11 +64,9 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 });
 
 // ═══════════════════════════════════════════════════
-// LUCIDE
+// LUCIDE — se llama aquí (scripts ya cargados antes que este archivo)
 // ═══════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
-    if (window.lucide) lucide.createIcons();
-});
+if (window.lucide) lucide.createIcons();
 
 // ═══════════════════════════════════════════════════
 // LAZY LOAD
@@ -123,6 +121,16 @@ function errState(msg) {
         <i data-lucide="alert-circle"></i><span>${esc(msg)}</span>
     </div>`;
 }
+function noDataChart(canvasId, msg) {
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    const wrap = el.closest('.chart-wrap');
+    if (wrap) wrap.innerHTML = `<div class="empty-state" style="padding:2rem;height:100%;align-items:center;justify-content:center">
+        <i data-lucide="bar-chart-2" style="opacity:.3;width:40px;height:40px"></i>
+        <span style="color:var(--text-muted);font-size:.85rem">${esc(msg)}</span>
+    </div>`;
+    reIcons(wrap ?? el.parentElement);
+}
 function setWrap(id, html) {
     const el = document.getElementById(id);
     if (el) { el.innerHTML = html; reIcons(el); }
@@ -165,7 +173,7 @@ const chartDefaults = {
 };
 function mkChart(id, cfg) {
     const el = document.getElementById(id);
-    if (!el || !window.Chart) return;
+    if (!el || !window.Chart) return null;
     return new Chart(el, cfg);
 }
 
@@ -184,25 +192,33 @@ async function loadOverview() {
         const g = document.getElementById('kpiGrid');
         if (g) {
             g.innerHTML =
-                kpiCard('Carreras totales',  ov.total_races    ?? '—', 'kpi-accent')  +
-                kpiCard('Pilotos',           ov.total_pilots   ?? '—')                 +
-                kpiCard('Equipos',           ov.total_teams    ?? '—', 'kpi-success') +
+                kpiCard('Carreras totales',  ov.total_races     ?? '—', 'kpi-accent')  +
+                kpiCard('Pilotos',           ov.total_pilots    ?? '—')                 +
+                kpiCard('Equipos',           ov.total_teams     ?? '—', 'kpi-success') +
                 kpiCard('Penalizaciones',    ov.total_penalties ?? '—', 'kpi-warning');
             reIcons(g);
         }
 
-        // Próximas carreras
+        // Próximas carreras — fallback a las más recientes si no hay futuras
         const raceList = rows(ov.races ?? []);
         const now = Date.now();
-        const upcoming = raceList
+        let upcoming = raceList
             .filter(r => new Date(r.event_date).getTime() >= now)
             .sort((a,b) => new Date(a.event_date) - new Date(b.event_date))
             .slice(0,5);
+        if (!upcoming.length) {
+            upcoming = [...raceList]
+                .sort((a,b) => new Date(b.event_date) - new Date(a.event_date))
+                .slice(0,5);
+        }
         setWrap('upcomingRacesWrap', upcoming.length
-            ? table(['Carrera','Circuito','País','Fecha','Duración'],
+            ? table(
+                upcoming.some(r => new Date(r.event_date).getTime() >= now)
+                    ? ['Carrera','Circuito','País','Fecha','Duración']
+                    : ['Carrera','Circuito','País','Fecha (pasada)','Duración'],
                 upcoming.map(r => ({ ...r, event_date: formatDate(r.event_date) })),
                 ['event_name','circuit_name','country','event_date','event_duration'])
-            : emptyState('No hay carreras próximas')
+            : emptyState('No hay carreras registradas')
         );
 
         // Chart: puntos por equipo (de results)
@@ -224,6 +240,8 @@ async function loadOverview() {
                 options:{ responsive:true, maintainAspectRatio:false,
                     plugins:{ legend:{display:false} }, scales: chartDefaults.scales }
             });
+        } else {
+            noDataChart('chartTeamPoints', 'Sin datos de puntos para este rol');
         }
 
         // Chart: tipos penalización (doughnut)
@@ -242,6 +260,8 @@ async function loadOverview() {
                 options:{ responsive:true, maintainAspectRatio:false,
                     plugins:{ legend:{ position:'bottom', labels:{color:'#7a7a85',font:{size:11},padding:12} } } }
             });
+        } else {
+            noDataChart('chartPenaltyTypes', 'Sin penalizaciones registradas');
         }
 
         // Chart: carreras por país (bar horizontal)
@@ -262,6 +282,8 @@ async function loadOverview() {
                         y:{ ticks:{color:'#7a7a85',font:{size:11}}, grid:{color:'rgba(255,255,255,.04)'} }
                     } }
             });
+        } else {
+            noDataChart('chartRacesByCountry', 'Sin datos de carreras');
         }
 
         reIcons(document.body);
@@ -291,7 +313,6 @@ async function loadPilots() {
             reIcons(g);
         }
 
-        // Tabla
         function renderPilots(arr) {
             setWrap('pilotsTableWrap',
                 table(['ID','Nombre','Edad','Categoría'], arr,
@@ -300,7 +321,6 @@ async function loadPilots() {
         }
         renderPilots(list);
 
-        // Búsqueda
         const s = document.getElementById('pilotSearch');
         if (s) s.addEventListener('input', () => {
             const q = s.value.toLowerCase();
@@ -310,17 +330,20 @@ async function loadPilots() {
             ));
         });
 
-        // Chart categorías
-        mkChart('chartPilotCategories',{
-            type:'doughnut',
-            data:{ labels: catNames, datasets:[{
-                data: catNames.map(k=>cats[k]),
-                backgroundColor: CHART_COLORS.slice(0,catNames.length),
-                borderColor:'var(--surface)', borderWidth:3
-            }]},
-            options:{ responsive:true, maintainAspectRatio:false,
-                plugins:{ legend:{ position:'bottom', labels:{color:'#7a7a85',font:{size:11},padding:12} } } }
-        });
+        if (catNames.length) {
+            mkChart('chartPilotCategories',{
+                type:'doughnut',
+                data:{ labels: catNames, datasets:[{
+                    data: catNames.map(k=>cats[k]),
+                    backgroundColor: CHART_COLORS.slice(0,catNames.length),
+                    borderColor:'var(--surface)', borderWidth:3
+                }]},
+                options:{ responsive:true, maintainAspectRatio:false,
+                    plugins:{ legend:{ position:'bottom', labels:{color:'#7a7a85',font:{size:11},padding:12} } } }
+            });
+        } else {
+            noDataChart('chartPilotCategories', 'Sin datos de categorías');
+        }
     } catch(e) { setWrap('pilotsTableWrap', errState('Error: '+e.message)); }
 }
 
@@ -331,6 +354,7 @@ async function loadVehicles() {
     try {
         const data  = await api('/api/vehicles');
         const list  = rows(data);
+        if (!list.length) { setWrap('vehiclesTableWrap', emptyState('Sin vehículos para este rol')); return; }
         const enhanced = list.map(r => ({
             ...r,
             __html: {
@@ -356,7 +380,6 @@ async function loadRaces() {
         let list = rows(data);
         const now = Date.now();
 
-        // KPIs
         const upcoming = list.filter(r => new Date(r.event_date).getTime() >= now);
         const past     = list.filter(r => new Date(r.event_date).getTime() <  now);
         const g = document.getElementById('racesKpiGrid');
@@ -377,17 +400,12 @@ async function loadRaces() {
         }
         renderRaces(list);
 
-        // Filtro
         const f = document.getElementById('raceFilter');
         if (f) f.addEventListener('change', () => {
             const v = f.value;
-            renderRaces(
-                v === 'upcoming' ? upcoming :
-                v === 'past'     ? past     : list
-            );
+            renderRaces(v === 'upcoming' ? upcoming : v === 'past' ? past : list);
         });
 
-        // Chart duración por nombre de carrera
         if (list.length) {
             function timeToMin(t) {
                 if (!t) return 0;
@@ -396,15 +414,21 @@ async function loadRaces() {
             }
             const labels = list.slice(0,10).map(r => r.event_name ?? r.id_race);
             const vals   = list.slice(0,10).map(r => timeToMin(r.event_duration));
-            mkChart('chartRacesDuration',{
-                type:'bar',
-                data:{ labels, datasets:[{
-                    label:'Duración (min)', data: vals,
-                    backgroundColor:'rgba(168,85,247,.7)', borderRadius:4
-                }]},
-                options:{ responsive:true, maintainAspectRatio:false,
-                    plugins:{ legend:{display:false} }, scales: chartDefaults.scales }
-            });
+            if (vals.some(v => v > 0)) {
+                mkChart('chartRacesDuration',{
+                    type:'bar',
+                    data:{ labels, datasets:[{
+                        label:'Duración (min)', data: vals,
+                        backgroundColor:'rgba(168,85,247,.7)', borderRadius:4
+                    }]},
+                    options:{ responsive:true, maintainAspectRatio:false,
+                        plugins:{ legend:{display:false} }, scales: chartDefaults.scales }
+                });
+            } else {
+                noDataChart('chartRacesDuration', 'Sin datos de duración');
+            }
+        } else {
+            noDataChart('chartRacesDuration', 'Sin carreras registradas');
         }
     } catch(e) { setWrap('racesTableWrap', errState('Error: '+e.message)); }
 }
@@ -417,7 +441,6 @@ async function loadTeams() {
         const data = await api('/api/teams');
         let list = rows(data);
 
-        // KPIs
         const g = document.getElementById('teamsKpiGrid');
         if (g) {
             const totalMech = list.reduce((s,t)=>s+(parseInt(t.mechanics_num,10)||0),0);
@@ -435,7 +458,6 @@ async function loadTeams() {
         }
         renderTeams(list);
 
-        // Búsqueda
         const s = document.getElementById('teamSearch');
         if (s) s.addEventListener('input', () => {
             const q = s.value.toLowerCase();
@@ -445,7 +467,6 @@ async function loadTeams() {
             ));
         });
 
-        // Chart mecánicos
         if (list.length) {
             const top = list.slice(0,12);
             mkChart('chartMechanics',{
@@ -457,6 +478,8 @@ async function loadTeams() {
                 options:{ responsive:true, maintainAspectRatio:false,
                     plugins:{ legend:{display:false} }, scales: chartDefaults.scales }
             });
+        } else {
+            noDataChart('chartMechanics', 'Sin equipos para este rol');
         }
     } catch(e) { setWrap('teamsTableWrap', errState('Error: '+e.message)); }
 }
@@ -469,7 +492,6 @@ async function loadPenalties() {
         const data = await api('/api/penalties');
         let list = rows(data);
 
-        // KPIs por tipo
         const tc = { POINTS:0, TIME:0, DSQ:0, DNF:0 };
         list.forEach(p => { if (tc[p.penalty_type]!==undefined) tc[p.penalty_type]++; });
         const g = document.getElementById('penaltiesKpiGrid');
@@ -478,10 +500,6 @@ async function loadPenalties() {
             g.innerHTML = Object.entries(tc).map(([k,v]) => kpiCard(k, v, cls[k]??'')).join('');
             reIcons(g);
         }
-
-        const enhanced = list.map(r => ({
-            ...r, __html:{ penalty_type: penaltyBadge(r.penalty_type) }
-        }));
 
         function renderPenalties(arr) {
             const mapped = arr.map(r => ({
@@ -494,24 +512,27 @@ async function loadPenalties() {
         }
         renderPenalties(list);
 
-        // Filtro por tipo
         const f = document.getElementById('penaltyTypeFilter');
         if (f) f.addEventListener('change', () => {
             renderPenalties(f.value === 'all' ? list : list.filter(p=>p.penalty_type===f.value));
         });
 
-        // Chart detalle
-        const labels = Object.keys(tc);
-        mkChart('chartPenaltiesDetail',{
-            type:'doughnut',
-            data:{ labels, datasets:[{
-                data: labels.map(k=>tc[k]),
-                backgroundColor: CHART_COLORS.slice(0,labels.length),
-                borderColor:'var(--surface)', borderWidth:3
-            }]},
-            options:{ responsive:true, maintainAspectRatio:false,
-                plugins:{ legend:{ position:'bottom', labels:{color:'#7a7a85',font:{size:11},padding:12} } } }
-        });
+        const hasData = Object.values(tc).some(v => v > 0);
+        if (hasData) {
+            const labels = Object.keys(tc);
+            mkChart('chartPenaltiesDetail',{
+                type:'doughnut',
+                data:{ labels, datasets:[{
+                    data: labels.map(k=>tc[k]),
+                    backgroundColor: CHART_COLORS.slice(0,labels.length),
+                    borderColor:'var(--surface)', borderWidth:3
+                }]},
+                options:{ responsive:true, maintainAspectRatio:false,
+                    plugins:{ legend:{ position:'bottom', labels:{color:'#7a7a85',font:{size:11},padding:12} } } }
+            });
+        } else {
+            noDataChart('chartPenaltiesDetail', 'Sin penalizaciones registradas');
+        }
     } catch(e) { setWrap('penaltiesTableWrap', errState('Error: '+e.message)); }
 }
 
@@ -523,7 +544,6 @@ async function loadResults() {
         const data = await api('/api/results');
         const list = rows(data);
 
-        // KPIs
         const totalPtsTeam  = list.reduce((s,r)=>s+(parseInt(r.base_points_team,10)||0),0);
         const totalPtsPilot = list.reduce((s,r)=>s+(parseInt(r.base_points_pilot,10)||0),0);
         const g = document.getElementById('resultsKpiGrid');
@@ -536,12 +556,13 @@ async function loadResults() {
         }
 
         setWrap('resultsTableWrap',
-            table(['Pos.','Carrera','Equipo','Tiempo','Pen.','Pts Eq.','Pts Pil.'], list,
-                ['position','event_name','id_team','final_time','penalty_time',
-                 'base_points_team','base_points_pilot'])
+            list.length
+                ? table(['Pos.','Carrera','Equipo','Tiempo','Pen.','Pts Eq.','Pts Pil.'], list,
+                    ['position','event_name','id_team','final_time','penalty_time',
+                     'base_points_team','base_points_pilot'])
+                : emptyState('Sin resultados para este rol')
         );
 
-        // Chart puntos por equipo
         if (list.length) {
             const tp = {};
             list.forEach(r => {
@@ -558,6 +579,8 @@ async function loadResults() {
                 options:{ responsive:true, maintainAspectRatio:false,
                     plugins:{ legend:{display:false} }, scales: chartDefaults.scales }
             });
+        } else {
+            noDataChart('chartResultsPoints', 'Sin datos de puntos para este rol');
         }
     } catch(e) { setWrap('resultsTableWrap', errState('Error: '+e.message)); }
 }
@@ -576,15 +599,12 @@ async function loadStats() {
         const penList = rows(pen);
         const resList = rows(res);
 
-        const totalPts    = resList.reduce((s,r)=>s+(parseInt(r.base_points_team,10)||0),0);
-        const avgPos      = resList.length
+        const totalPts = resList.reduce((s,r)=>s+(parseInt(r.base_points_team,10)||0),0);
+        const avgPos   = resList.length
             ? (resList.reduce((s,r)=>s+(parseInt(r.position,10)||0),0)/resList.length).toFixed(1)
             : '—';
-        const penPerRace  = ov.total_races
-            ? (penList.length / ov.total_races).toFixed(2)
-            : '—';
-        const dsnq        = penList.filter(p=>p.penalty_type==='DSQ'||p.penalty_type==='DNF').length;
-        const pct         = penList.length ? Math.round(dsnq/penList.length*100) : 0;
+        const dsnq = penList.filter(p=>p.penalty_type==='DSQ'||p.penalty_type==='DNF').length;
+        const pct  = penList.length ? Math.round(dsnq/penList.length*100) : 0;
 
         const g = document.getElementById('statsKpiGrid');
         if (g) {
@@ -598,7 +618,6 @@ async function loadStats() {
             reIcons(g);
         }
 
-        // Chart puntos top 10
         if (resList.length) {
             const tp = {};
             resList.forEach(r => {
@@ -615,9 +634,10 @@ async function loadStats() {
                 options:{ responsive:true, maintainAspectRatio:false,
                     plugins:{ legend:{display:false} }, scales: chartDefaults.scales }
             });
+        } else {
+            noDataChart('chartStatsTeams', 'Sin datos de resultados para este rol');
         }
 
-        // Chart penalizaciones doughnut
         if (penList.length) {
             const tc = {};
             penList.forEach(p=>{ tc[p.penalty_type]=(tc[p.penalty_type]??0)+1; });
@@ -632,9 +652,10 @@ async function loadStats() {
                 options:{ responsive:true, maintainAspectRatio:false,
                     plugins:{ legend:{ position:'bottom', labels:{color:'#7a7a85',font:{size:11},padding:12} } } }
             });
+        } else {
+            noDataChart('chartStatsPenalties', 'Sin penalizaciones para este rol');
         }
 
-        // Leaderboard top 10
         if (resList.length) {
             const tp = {};
             resList.forEach(r => {
@@ -651,6 +672,8 @@ async function loadStats() {
                 table(['#','Equipo','Carreras','Puntos'], sorted,
                     ['pos','id_team','races','points'])
             );
+        } else {
+            setWrap('statsLeaderboard', emptyState('Sin resultados para este rol'));
         }
     } catch(e) { setWrap('statsKpiGrid', errState('Error cargando estadísticas: '+e.message)); }
 }

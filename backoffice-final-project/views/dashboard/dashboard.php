@@ -266,7 +266,7 @@ $navItems = [
                 <div class="table-wrap">
                     <table>
                         <thead><tr>
-                            <th>Tipo</th><th>Motivo</th><th>Valor</th><th>Aplica a</th>
+                            <th>Tipo</th><th>Motivo</th><th>Valor</th><th>Aplica a</th><th>Equipo</th><th>Piloto</th><th>Carrera</th>
                         </tr></thead>
                         <tbody id="penaltiesBody">
                             <tr><td colspan="4" class="empty-state-cell">Cargando...</td></tr>
@@ -291,7 +291,7 @@ $navItems = [
                 <div class="table-wrap">
                     <table>
                         <thead><tr>
-                            <th>Pos.</th><th>Vehículo</th><th>Tiempo</th><th>Puntos equipo</th><th>Puntos piloto</th>
+                            <th>Pos.</th><th>Carrera</th><th>Equipo</th><th>Vehículo</th><th>Tiempo final</th><th>T. penalizacion</th><th>Puntos equipo</th><th>Puntos piloto</th>
                         </tr></thead>
                         <tbody id="resultsBody">
                             <tr><td colspan="5" class="empty-state-cell">Cargando...</td></tr>

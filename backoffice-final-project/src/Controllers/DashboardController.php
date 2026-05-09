@@ -387,30 +387,30 @@ class DashboardController {
 
         $spMap = [
             'insert' => [
-                'pilot'        => ['sp_InsertPilotData',        ['pilot_name','pilot_age','id_pilot_category']],
-                'team'         => ['sp_InsertTeamData',         ['team_name','mechanic_num','id_manufacturer']],
-                'vehicle'      => ['sp_InsertVehicleData',      ['model','specifications_url']],
-                'race'         => ['sp_InsertRaceData',         ['event_name','event_date','event_duration','id_circuit']],
-                'circuit'      => ['sp_InsertCircuitData',      ['circuit_name','country','length_km','direction']],
-                'manufacturer' => ['sp_InsertManufacturerData', ['manufacturer_name','manufacturer_country']],
-                'penalty'      => ['sp_InsertPenaltyData',      ['penalty_type','reason','penalty_value','penalty_applies_to']],
+                'pilots'        => ['sp_InsertPilotData',        ['pilot_name','pilot_age','id_pilot_category']],
+                'teams'         => ['sp_InsertTeamData',         ['team_name','mechanic_num','id_manufacturer']],
+                'vehicles'      => ['sp_InsertVehicleData',      ['model','specifications_url']],
+                'races'         => ['sp_InsertRaceData',         ['event_name','event_date','event_duration','id_circuit']],
+                'circuits'      => ['sp_InsertCircuitData',      ['circuit_name','country','length_km','direction']],
+                'manufacturers' => ['sp_InsertManufacturerData', ['manufacturer_name','manufacturer_country']],
+                'penalties'     => ['sp_InsertPenaltyData',      ['penalty_type','reason','penalty_value','penalty_applies_to']],
             ],
             'update' => [
-                'pilot'        => ['sp_UpdatePilotData',        ['id_pilot','pilot_name','pilot_age','id_pilot_category']],
-                'team'         => ['sp_UpdateTeamData',         ['id_team','team_name','mechanic_num','id_manufacturer']],
-                'vehicle'      => ['sp_UpdateVehicleData',      ['id_vehicle','model','specifications_url']],
-                'race'         => ['sp_UpdateRaceData',         ['id_race','event_name','event_date','event_duration','id_circuit']],
-                'circuit'      => ['sp_UpdateCircuitData',      ['circuit_id','circuit_name','country','length_km','direction']],
-                'manufacturer' => ['sp_UpdateManufacturerData', ['id_manufacturer','manufacturer_name','manufacturer_country']],
+                'pilots'        => ['sp_UpdatePilotData',        ['id_pilot','pilot_name','pilot_age','id_pilot_category']],
+                'teams'         => ['sp_UpdateTeamData',         ['id_team','team_name','mechanic_num','id_manufacturer']],
+                'vehicles'      => ['sp_UpdateVehicleData',      ['id_vehicle','model','specifications_url']],
+                'races'         => ['sp_UpdateRaceData',         ['id_race','event_name','event_date','event_duration','id_circuit']],
+                'circuits'      => ['sp_UpdateCircuitData',           ['id_circuit','circuit_name','country','length_km','direction']],
+                'manufacturers' => ['sp_UpdateManufacturerData', ['id_manufacturer','manufacturer_name','manufacturer_country']],
             ],
             'delete' => [
-                'pilot'        => ['sp_DeletePilotData',        ['id_pilot']],
-                'team'         => ['sp_DeleteTeamData',         ['id_team']],
-                'vehicle'      => ['sp_DeleteVehicleData',      ['id_vehicle']],
-                'race'         => ['sp_DeleteRaceData',         ['id_race']],
-                'circuit'      => ['sp_DeleteCircuitData',      ['circuit_id']],
-                'manufacturer' => ['sp_DeleteManufacturerData', ['id_manufacturer']],
-                'penalty'      => ['sp_DeletePenaltyData',      ['id_penalty']],
+                'pilots'        => ['sp_DeletePilotData',        ['id_pilot']],
+                'teams'         => ['sp_DeleteTeamData',         ['id_team']],
+                'vehicles'      => ['sp_DeleteVehicleData',      ['id_vehicle']],
+                'races'         => ['sp_DeleteRaceData',         ['id_race']],
+                'circuits'      => ['sp_DeleteCircuitData',      ['circuit_id']],
+                'manufacturers' => ['sp_DeleteManufacturerData', ['id_manufacturer']],
+                'penalties'     => ['sp_DeletePenaltyData',      ['id_penalty']],
             ],
         ];
 
@@ -425,8 +425,13 @@ class DashboardController {
             if (!array_key_exists($p, $data)) {
                 $this->json(['error' => 400, 'message' => "Missing field: $p"]);
             }
-            $values[] = $data[$p];
-        }
+            $val = $data[$p];
+            // Si el campo es un ID o entero, forzar cast
+            if (str_starts_with($p, 'id_') || in_array($p, ['circuit_id','pilot_age','mechanic_num','length_km','position','penalty_value'])) {
+                $val = $val === '' ? null : (int)$val;
+            }
+            $values[] = $val;
+            }
 
         try {
             $pdo  = Container::getInstance()->make('db.admin');

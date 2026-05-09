@@ -102,12 +102,28 @@ async function loadOverview() {
                 </div>`).join('');
         }
 
-        const races = data.races || [];
+        const races = Array.isArray(data.races) ? data.races : [];
+        const now = new Date();
+
+        const upcomingRaces = races
+            .filter(r => {
+                const rawDate = r.event_date ?? r.date ?? r.eventdate;
+                if (!rawDate) return false;
+                const d = new Date(rawDate);
+                return !isNaN(d.getTime()) && d >= now;
+            })
+            .sort((a, b) => {
+                const da = new Date(a.event_date ?? a.date ?? a.eventdate);
+                const db = new Date(b.event_date ?? b.date ?? b.eventdate);
+                return da - db;
+            })
+            .slice(0, 8);
+
         const tbody = document.getElementById('overviewRacesBody');
         if (tbody) {
-            tbody.innerHTML = races.length
-                ? races.map(r => renderRaceRow(r)).join('')
-                : '<tr><td colspan="5" class="empty-state-cell">Sin carreras registradas</td></tr>';
+            tbody.innerHTML = upcomingRaces.length
+                ? upcomingRaces.map(r => renderRaceRow(r)).join('')
+                : '<tr><td colspan="5" class="empty-state-cell">No hay próximas carreras</td></tr>';
         }
     } catch (e) {
         console.error('overview error', e);
@@ -148,7 +164,7 @@ function renderPilotRow(r) {
     return `<tr>
         <td>${esc(r.pilot_name ?? r.name ?? '—')}</td>
         <td>${esc(r.pilot_age ?? r.age ?? '—')}</td>
-        <td>${esc(r.category_name ?? r.pilot_category ?? r.category ?? '—')}</td>
+        <td>${esc(r.pilot_category_name ?? r.category_name ?? r.pilot_category ?? r.category ?? '—')}</td>
     </tr>`;
 }
 
@@ -156,7 +172,7 @@ function renderTeamRow(r) {
     return `<tr>
         <td>${esc(r.team_name ?? r.name ?? '—')}</td>
         <td>${esc(r.manufacturer_name ?? r.manufacturer ?? '—')}</td>
-        <td>${esc(r.mechanic_num ?? r.mechanics ?? '—')}</td>
+        <td>${esc(r.mechanics_num ?? r.mechanics ?? '—')}</td>
     </tr>`;
 }
 
@@ -176,18 +192,24 @@ function renderPenaltyRow(r) {
         <td>${esc(r.reason ?? '—')}</td>
         <td>${esc(r.penalty_value ?? '—')}</td>
         <td>${esc(r.penalty_applies_to ?? '—')}</td>
+        <td>${esc(r.team_name ?? '—')}</td>
+        <td>${esc(r.penalty_applies_to === 'PILOT' ? (r.pilot_name ?? '—') : '—')}</td>
+        <td>${esc(r.event_name ?? '—')}</td>
     </tr>`;
 }
 
 function renderResultRow(r) {
     const pos = r.position ?? r.pos ?? '—';
-    const posCls = pos === 1 ? 'kpi-accent' : '';
+    const posCls = Number(pos) === 1 ? 'kpi-accent' : '';
     return `<tr>
-        <td><strong class="${posCls}">${pos}</strong></td>
-        <td>${esc(r.vehicle_model ?? r.model ?? r.id_vehicle ?? '—')}</td>
-        <td>${esc(r.final_time ?? '—')}</td>
-        <td>${esc(r.base_points_team ?? '—')}</td>
-        <td>${esc(r.base_points_pilot ?? '—')}</td>
+        <td><strong class="${posCls}">${esc(pos)}</strong></td>
+        <td>${esc(r.event_name ?? r.eventname ?? r.race_name ?? '—')}</td>
+        <td>${esc(r.team_name ?? r.teamname ?? r.id_team ?? '—')}</td>
+        <td>${esc(r.model ?? r.vehicle_model ?? '—')}</td>
+        <td>${esc(r.final_time ?? r.finaltime ?? '—')}</td>
+        <td>${esc(r.penalty_time ?? r.penaltytime ?? '—')}</td>
+        <td>${esc(r.base_points_team ?? r.basepointsteam ?? '—')}</td>
+        <td>${esc(r.base_points_pilot ?? r.basepointspilot ?? '—')}</td>
     </tr>`;
 }
 
@@ -286,7 +308,7 @@ async function loadManufacturer() {
         const tbody = document.getElementById('manufacturerTeamsBody');
         if (tbody) {
             tbody.innerHTML = teams.length
-                ? teams.map(t => `<tr><td>${esc(t.team_name??'—')}</td><td>${esc(t.mechanic_num??'—')}</td></tr>`).join('')
+                ? teams.map(t => `<tr><td>${esc(t.team_name??'—')}</td><td>${esc(t.mechanics_num??'—')}</td></tr>`).join('')
                 : '<tr><td colspan="2" class="empty-state-cell">Sin equipos asociados</td></tr>';
         }
     } catch (e) {
@@ -296,14 +318,14 @@ async function loadManufacturer() {
 
 // ── Administración ────────────────────────────────────────────
 const entityConfig = {
-    pilots:        { label: 'Pilotos',       cols: ['pilot_name','pilot_age','category_name'],     keys: ['pilot_name','pilot_age','category_name'],     idKey: 'id_pilot' },
-    teams:         { label: 'Equipos',       cols: ['team_name','manufacturer_name','mechanic_num'], keys: ['team_name','mechanic_num','manufacturer_name'], idKey: 'id_team' },
+    pilots:        { label: 'Pilotos',       cols: ['pilot_name', 'pilot_age', 'pilot_category_name'], keys: ['pilot_name', 'pilot_age', 'pilot_category_name'], idKey: 'id_pilot' },
+    teams:         { label: 'Equipos',       cols: ['team_name','manufacturer_name','mechanics_num'], keys: ['team_name','mechanics_num','manufacturer_name'], idKey: 'id_team' },
     vehicles:      { label: 'Vehículos',     cols: ['model','specifications_url'],                 keys: ['model','specifications_url'],                 idKey: 'id_vehicle' },
     races:         { label: 'Carreras',      cols: ['event_name','circuit_name','event_date','event_duration'], keys: ['event_name','event_date','event_duration','id_circuit'], idKey: 'id_race' },
-    circuits:      { label: 'Circuitos',     cols: ['circuit_name','country','length_km','direction'], keys: ['circuit_name','country','length_km','direction'], idKey: 'circuit_id' },
+    circuits:      { label: 'Circuitos',     cols: ['circuit_name','country','length_km','direction'], keys: ['circuit_name','country','length_km','direction'], idKey: 'id_circuit' },
     manufacturers: { label: 'Fabricantes',   cols: ['manufacturer_name','manufacturer_country'],   keys: ['manufacturer_name','manufacturer_country'],   idKey: 'id_manufacturer' },
-    penalties:     { label: 'Penalizaciones',cols: ['penalty_type','reason','penalty_value','penalty_applies_to'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to'], idKey: 'id_penalty' },
-    results:       { label: 'Resultados',    cols: ['position','final_time','id_vehicle'],         keys: ['position','final_time','penalty_time','base_points_team','base_points_pilot','penalty_points_team','penalty_points_pilot','id_vehicle'], idKey: 'id_result' },
+    penalties:     { label: 'Penalizaciones',cols: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'],idKey: 'id_penalty' },
+    results:       { label: 'Resultados',    cols: ['position','final_time','team_name','model','event_name'], keys: ['position','final_time','penalty_time','base_points_team','base_points_pilot','penalty_points_team','penalty_points_pilot','id_vehicle','id_race','id_team'], idKey: 'id_result' },
 };
 
 function initAdminTabs() {
@@ -564,8 +586,9 @@ function formatDate(d) {
 
 function colLabel(key) {
     const map = {
+        pilot_category_name: 'Categoría',
         pilot_name: 'Nombre', pilot_age: 'Edad', id_pilot_category: 'ID Categoría', category_name: 'Categoría',
-        team_name: 'Equipo', mechanic_num: 'Mecánicos', id_manufacturer: 'ID Fabricante', manufacturer_name: 'Fabricante',
+        team_name: 'Equipo', mechanics_num: 'Mecánicos', id_manufacturer: 'ID Fabricante', manufacturer_name: 'Fabricante',
         manufacturer_country: 'País', model: 'Modelo', specifications_url: 'Especificaciones',
         event_name: 'Nombre', event_date: 'Fecha', event_duration: 'Duración', id_circuit: 'ID Circuito',
         circuit_name: 'Circuito', country: 'País', length_km: 'Longitud (km)', direction: 'Dirección',

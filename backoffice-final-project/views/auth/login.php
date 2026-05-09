@@ -1,9 +1,4 @@
 <?php
-session_start();
-if (isset($_SESSION['user'])) {
-    header('Location: /dashboard');
-    exit;
-}
 ?>
 <!DOCTYPE html>
 <html lang="es" data-theme="dark">

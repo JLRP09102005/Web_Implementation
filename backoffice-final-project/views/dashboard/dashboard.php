@@ -1,54 +1,39 @@
 <?php
-// views/dashboard/dashboard.php
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (!isset($_SESSION['user'])) { header('Location: /login'); exit; }
-
-$user     = $_SESSION['user'];
-$userId   = (int)($user['id']       ?? 0);
-$username = htmlspecialchars($user['username'] ?? 'Usuario', ENT_QUOTES, 'UTF-8');
-$role     = $user['role'] ?? 'guest';
+$user   = $_SESSION['user'];
+$role   = $user['role'];
+$userId = (int)$user['id'];
+$username = htmlspecialchars($user['username'] ?? 'Usuario');
 $initial  = strtoupper(mb_substr($username, 0, 1));
+$roleLabel = htmlspecialchars($role);
 
-$roleLabels = [
-    'software-administrator'      => 'Administrador',
-    'administratorDB'             => 'Admin DB',
-    'race-director'               => 'Director de Carrera',
-    'comissioner-boss'            => 'Jefe Comisario',
-    'data-analyst'                => 'Analista de Datos',
-    'team-manager'                => 'Team Manager',
-    'mechanical-boss'             => 'Jefe Mecánico',
-    'manufacturer-representative' => 'Rep. Fabricante',
-    'pilot'                       => 'Piloto',
-    'guest'                       => 'Invitado',
+// ── Secciones visibles por rol ───────────────────────────────
+$sectionMap = [
+    'administratorDB' => ['panel','carreras','pilotos','equipos','vehiculos','penalizaciones','resultados','inscripciones','estadisticas','administracion'],
+    'commissioner-boss'           => ['panel','carreras','penalizaciones','resultados'],
+    'manufacturer-representative' => ['panel','equipos','vehiculos','fabricante'],
+    'mechanical-boss'             => ['panel','vehiculos','carreras'],
+    'pilot'                       => ['panel','pilotos','resultados','inscripciones'],
+    'team-manager'                => ['panel','pilotos','equipos','vehiculos','penalizaciones','resultados','inscripciones'],
+    'race-director'               => ['panel','carreras','penalizaciones','resultados','estadisticas'],
+    'data-analyst'                => ['panel','carreras','pilotos','equipos','vehiculos','penalizaciones','resultados','inscripciones','estadisticas'],
+    'readonly-public'             => ['panel','carreras','pilotos','resultados'],
 ];
-$roleLabel = htmlspecialchars($roleLabels[$role] ?? $role, ENT_QUOTES, 'UTF-8');
-$roleSafe  = htmlspecialchars($role, ENT_QUOTES, 'UTF-8');
 
-// Secciones visibles por rol
-$visibilityMap = [
-    'software-administrator'      => ['overview','pilots','vehicles','races','teams','penalties','results','stats'],
-    'administratorDB'             => ['overview','pilots','vehicles','races','teams','penalties','results','stats'],
-    'race-director'               => ['overview','races','penalties','results'],
-    'comissioner-boss'            => ['overview','races','penalties','results'],
-    'data-analyst'                => ['overview','pilots','vehicles','races','teams','penalties','results','stats'],
-    'team-manager'                => ['overview','races','vehicles','results'],
-    'mechanical-boss'             => ['overview','vehicles','races'],
-    'manufacturer-representative' => ['overview','vehicles','races','teams','manufacturer'],
-    'pilot'                       => ['overview','races','results'],
-    'guest'                       => ['overview','races','pilots','teams'],
-];
-$visible = $visibilityMap[$role] ?? ['overview'];
+$visible = $sectionMap[$role] ?? ['panel'];
 
-$navDef = [
-    'overview'     => ['icon' => 'layout-dashboard', 'label' => 'Panel'],
-    'pilots'       => ['icon' => 'user',              'label' => 'Pilotos'],
-    'vehicles'     => ['icon' => 'car',               'label' => 'Vehículos'],
-    'races'        => ['icon' => 'flag',              'label' => 'Carreras'],
-    'teams'        => ['icon' => 'users',             'label' => 'Equipos'],
-    'penalties'    => ['icon' => 'alert-triangle',    'label' => 'Penalizaciones'],
-    'results'      => ['icon' => 'trophy',            'label' => 'Resultados'],
-    'stats'        => ['icon' => 'bar-chart-2',       'label' => 'Estadísticas'],
-    'manufacturer' => ['icon' => 'factory',           'label' => 'Mi Fabricante'],
+// ── Labels e iconos del sidebar ──────────────────────────────
+$navItems = [
+    'panel'          => ['label' => 'Panel',          'icon' => 'layout-dashboard'],
+    'carreras'       => ['label' => 'Carreras',        'icon' => 'flag'],
+    'pilotos'        => ['label' => 'Pilotos',         'icon' => 'user'],
+    'equipos'        => ['label' => 'Equipos',         'icon' => 'users'],
+    'vehiculos'      => ['label' => 'Vehículos',       'icon' => 'car'],
+    'penalizaciones' => ['label' => 'Penalizaciones',  'icon' => 'alert-triangle'],
+    'resultados'     => ['label' => 'Resultados',      'icon' => 'trophy'],
+    'inscripciones'  => ['label' => 'Inscripciones',   'icon' => 'clipboard-list'],
+    'estadisticas'   => ['label' => 'Estadísticas',    'icon' => 'bar-chart-2'],
+    'fabricante'     => ['label' => 'Mi Fabricante',   'icon' => 'factory'],
+    'administracion' => ['label' => 'Administración',  'icon' => 'settings'],
 ];
 ?>
 <!DOCTYPE html>
@@ -56,24 +41,25 @@ $navDef = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEC · Panel de Control</title>
+    <title>WEC — Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/public/css/dashboard.css">
 </head>
 <body>
 
-<!-- ════════════════════════════════════════
-     SIDEBAR
-════════════════════════════════════════ -->
+<!-- Overlay mobile -->
+<div class="overlay" id="overlay" aria-hidden="true"></div>
+
+<!-- ── Sidebar ── -->
 <aside class="sidebar" id="sidebar" role="navigation" aria-label="Navegación principal">
+
     <div class="sidebar-header">
         <div class="sidebar-logo">
-            <svg width="30" height="30" viewBox="0 0 48 48" fill="none"
-                 style="color:var(--accent)" aria-hidden="true">
-                <circle cx="24" cy="24" r="21" stroke="currentColor" stroke-width="2.5"/>
-                <path d="M13 26 L19 16 L24 22 L29 16 L35 26"
-                      stroke="currentColor" stroke-width="2.5"
-                      stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="24" cy="32" r="2.5" fill="currentColor"/>
+            <svg width="28" height="28" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <circle cx="24" cy="24" r="22" stroke="#e10600" stroke-width="2.5"/>
+                <path d="M14 24 L20 16 L24 22 L28 16 L34 24 L28 32 L24 26 L20 32 Z" fill="#e10600"/>
             </svg>
             <span class="logo-text">WEC</span>
         </div>
@@ -83,12 +69,16 @@ $navDef = [
     </div>
 
     <nav class="sidebar-nav" aria-label="Secciones">
-        <?php foreach ($navDef as $id => $cfg): if (!in_array($id, $visible, true)) continue; ?>
-        <button class="nav-item<?= $id === 'overview' ? ' active' : '' ?>"
-                data-section="<?= $id ?>"
-                aria-current="<?= $id === 'overview' ? 'page' : 'false' ?>">
-            <i data-lucide="<?= $cfg['icon'] ?>" width="16" height="16" aria-hidden="true"></i>
-            <?= $cfg['label'] ?>
+        <?php foreach ($visible as $sectionId):
+            $item = $navItems[$sectionId] ?? ['label' => $sectionId, 'icon' => 'circle'];
+        ?>
+        <button
+            class="nav-item<?= $sectionId === 'panel' ? ' active' : '' ?>"
+            data-section="<?= $sectionId ?>"
+            aria-current="<?= $sectionId === 'panel' ? 'page' : 'false' ?>"
+        >
+            <i data-lucide="<?= $item['icon'] ?>" width="16" height="16" aria-hidden="true"></i>
+            <?= htmlspecialchars($item['label']) ?>
         </button>
         <?php endforeach; ?>
     </nav>
@@ -105,371 +95,374 @@ $navDef = [
             <i data-lucide="log-out" width="16" height="16" aria-hidden="true"></i>
         </button>
     </div>
+
 </aside>
 
-<div class="overlay" id="overlay" aria-hidden="true"></div>
+<!-- ── Main ── -->
+<div class="main">
 
-<!-- ════════════════════════════════════════
-     MAIN
-════════════════════════════════════════ -->
-<main class="main" id="mainContent">
-
+    <!-- Topbar -->
     <header class="topbar">
-        <button class="btn-menu" id="menuBtn" aria-label="Abrir menú"
-                aria-expanded="false" aria-controls="sidebar">
-            <i data-lucide="menu" aria-hidden="true"></i>
+        <button class="btn-menu" id="btnMenu" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+            <i data-lucide="menu" width="20" height="20" aria-hidden="true"></i>
         </button>
         <h1 class="topbar-title" id="topbarTitle">Panel</h1>
         <span class="topbar-role-badge"><?= $roleLabel ?></span>
     </header>
 
-    <div class="content">
+    <!-- Content -->
+    <main class="content" id="mainContent">
 
-    <!-- ─── OVERVIEW ────────────────────────────────── -->
-    <?php if (in_array('overview', $visible)): ?>
-    <section class="section active" data-section="overview" aria-labelledby="h-overview">
-        <div class="section-header">
-            <h2 id="h-overview">Panel de control</h2>
-            <p class="section-sub">Resumen global del campeonato</p>
-        </div>
-
-        <!-- KPIs -->
-        <div class="kpi-grid" id="kpiGrid">
-            <?php foreach (['races','pilots','teams','penalties'] as $k): ?>
-            <div class="kpi-card skeleton">
-                <div class="sk-line sk-s"></div>
-                <div class="sk-line sk-l"></div>
+        <!-- ── PANEL ── -->
+        <?php if (in_array('panel', $visible)): ?>
+        <section class="section active" id="sec-panel" aria-label="Panel">
+            <div class="section-header">
+                <h2>Panel de control</h2>
+                <p class="section-sub">Resumen del campeonato</p>
             </div>
-            <?php endforeach; ?>
-        </div>
-
-        <!-- Gráficas Overview -->
-        <div class="charts-row mt-6">
-            <!-- Próximas carreras -->
-            <div class="card chart-card">
+            <div class="kpi-grid" id="kpiGrid">
+                <div class="kpi-card skeleton">
+                    <div class="sk-line sk-s"></div>
+                    <div class="sk-line sk-l"></div>
+                </div>
+                <div class="kpi-card skeleton">
+                    <div class="sk-line sk-s"></div>
+                    <div class="sk-line sk-l"></div>
+                </div>
+                <div class="kpi-card skeleton">
+                    <div class="sk-line sk-s"></div>
+                    <div class="sk-line sk-l"></div>
+                </div>
+            </div>
+            <div class="card mt-6">
                 <div class="card-header">
-                    <h3><i data-lucide="calendar" aria-hidden="true"></i> Próximas carreras</h3>
+                    <h3><i data-lucide="flag" width="15" height="15" aria-hidden="true"></i> Próximas carreras</h3>
                 </div>
-                <div class="table-wrap" id="upcomingRacesWrap">
-                    <div class="sk-block"><div class="sk-line sk-l"></div><div class="sk-line sk-s"></div></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th>Carrera</th><th>Circuito</th><th>País</th><th>Fecha</th><th>Duración</th>
+                        </tr></thead>
+                        <tbody id="overviewRacesBody">
+                            <tr><td colspan="5" class="empty-state-cell">Cargando...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
+        </section>
+        <?php endif; ?>
 
-            <!-- Gráfica puntos por equipo -->
-            <div class="card chart-card">
+        <!-- ── CARRERAS ── -->
+        <?php if (in_array('carreras', $visible)): ?>
+        <section class="section" id="sec-carreras" aria-label="Carreras">
+            <div class="section-header">
+                <h2>Carreras</h2>
+                <p class="section-sub">Calendario del campeonato</p>
+            </div>
+            <div class="card">
                 <div class="card-header">
-                    <h3><i data-lucide="bar-chart-2" aria-hidden="true"></i> Puntos por equipo</h3>
+                    <h3><i data-lucide="flag" width="15" height="15" aria-hidden="true"></i> Calendario</h3>
                 </div>
-                <div class="chart-wrap">
-                    <canvas id="chartTeamPoints" aria-label="Puntos por equipo"></canvas>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th>Carrera</th><th>Circuito</th><th>País</th><th>Fecha</th><th>Duración</th>
+                        </tr></thead>
+                        <tbody id="racesBody">
+                            <tr><td colspan="5" class="empty-state-cell">Cargando...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </div>
+        </section>
+        <?php endif; ?>
 
-        <!-- Segunda fila de gráficas -->
-        <div class="charts-row mt-4">
-            <!-- Distribución penalizaciones -->
-            <div class="card chart-card">
+        <!-- ── PILOTOS ── -->
+        <?php if (in_array('pilotos', $visible)): ?>
+        <section class="section" id="sec-pilotos" aria-label="Pilotos">
+            <div class="section-header">
+                <h2>Pilotos</h2>
+                <p class="section-sub">Pilotos del campeonato</p>
+            </div>
+            <div class="card">
                 <div class="card-header">
-                    <h3><i data-lucide="pie-chart" aria-hidden="true"></i> Tipos de penalización</h3>
+                    <h3><i data-lucide="user" width="15" height="15" aria-hidden="true"></i> Listado</h3>
                 </div>
-                <div class="chart-wrap chart-wrap--sm">
-                    <canvas id="chartPenaltyTypes" aria-label="Tipos de penalización"></canvas>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th>Nombre</th><th>Edad</th><th>Categoría</th>
+                        </tr></thead>
+                        <tbody id="pilotsBody">
+                            <tr><td colspan="3" class="empty-state-cell">Cargando...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
+        </section>
+        <?php endif; ?>
 
-            <!-- Carreras por país -->
-            <div class="card chart-card">
+        <!-- ── EQUIPOS ── -->
+        <?php if (in_array('equipos', $visible)): ?>
+        <section class="section" id="sec-equipos" aria-label="Equipos">
+            <div class="section-header">
+                <h2>Equipos</h2>
+                <p class="section-sub">Equipos participantes</p>
+            </div>
+            <div class="card">
                 <div class="card-header">
-                    <h3><i data-lucide="map-pin" aria-hidden="true"></i> Carreras por país</h3>
+                    <h3><i data-lucide="users" width="15" height="15" aria-hidden="true"></i> Listado</h3>
                 </div>
-                <div class="chart-wrap chart-wrap--sm">
-                    <canvas id="chartRacesByCountry" aria-label="Carreras por país"></canvas>
-                </div>
-            </div>
-        </div>
-    </section>
-    <?php endif; ?>
-
-    <!-- ─── PILOTOS ──────────────────────────────────── -->
-    <?php if (in_array('pilots', $visible)): ?>
-    <section class="section" data-section="pilots" aria-labelledby="h-pilots">
-        <div class="section-header">
-            <h2 id="h-pilots">Pilotos</h2>
-            <p class="section-sub">Listado de pilotos del campeonato</p>
-        </div>
-
-        <!-- Stats pilotos -->
-        <div class="kpi-grid kpi-grid--sm" id="pilotsKpiGrid">
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-        </div>
-
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3><i data-lucide="user" aria-hidden="true"></i> Pilotos registrados</h3>
-                <input type="search" id="pilotSearch" placeholder="Buscar…" class="search-input"
-                       aria-label="Buscar piloto">
-            </div>
-            <div class="table-wrap" id="pilotsTableWrap">
-                <div class="sk-block"><div class="sk-line sk-l"></div><div class="sk-line sk-s"></div></div>
-            </div>
-        </div>
-
-        <!-- Gráfica categorías -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3><i data-lucide="pie-chart" aria-hidden="true"></i> Distribución por categoría</h3>
-            </div>
-            <div class="chart-wrap chart-wrap--sm" style="max-width:400px;margin:0 auto">
-                <canvas id="chartPilotCategories" aria-label="Pilotos por categoría"></canvas>
-            </div>
-        </div>
-    </section>
-    <?php endif; ?>
-
-    <!-- ─── VEHÍCULOS ───────────────────────────────── -->
-    <?php if (in_array('vehicles', $visible)): ?>
-    <section class="section" data-section="vehicles" aria-labelledby="h-vehicles">
-        <div class="section-header">
-            <h2 id="h-vehicles">Vehículos</h2>
-            <p class="section-sub">Flota de vehículos registrados</p>
-        </div>
-        <div class="card">
-            <div class="card-header">
-                <h3><i data-lucide="car" aria-hidden="true"></i> Vehículos</h3>
-            </div>
-            <div class="table-wrap" id="vehiclesTableWrap">
-                <div class="sk-block"><div class="sk-line sk-l"></div><div class="sk-line sk-s"></div></div>
-            </div>
-        </div>
-    </section>
-    <?php endif; ?>
-
-    <!-- ─── CARRERAS ─────────────────────────────────── -->
-    <?php if (in_array('races', $visible)): ?>
-    <section class="section" data-section="races" aria-labelledby="h-races">
-        <div class="section-header">
-            <h2 id="h-races">Carreras</h2>
-            <p class="section-sub">Calendario completo del campeonato</p>
-        </div>
-
-        <div class="kpi-grid kpi-grid--sm" id="racesKpiGrid">
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-        </div>
-
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3><i data-lucide="flag" aria-hidden="true"></i> Calendario</h3>
-                <div style="display:flex;gap:.5rem;align-items:center">
-                    <select id="raceFilter" class="search-input" style="width:auto" aria-label="Filtrar carreras">
-                        <option value="all">Todas</option>
-                        <option value="upcoming">Próximas</option>
-                        <option value="past">Pasadas</option>
-                    </select>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th>Equipo</th><th>Fabricante</th><th>Mecánicos</th>
+                        </tr></thead>
+                        <tbody id="teamsBody">
+                            <tr><td colspan="3" class="empty-state-cell">Cargando...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            <div class="table-wrap" id="racesTableWrap">
-                <div class="sk-block"><div class="sk-line sk-l"></div><div class="sk-line sk-s"></div></div>
+        </section>
+        <?php endif; ?>
+
+        <!-- ── VEHÍCULOS ── -->
+        <?php if (in_array('vehiculos', $visible)): ?>
+        <section class="section" id="sec-vehiculos" aria-label="Vehículos">
+            <div class="section-header">
+                <h2>Vehículos</h2>
+                <p class="section-sub">Flota registrada</p>
             </div>
-        </div>
-
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3><i data-lucide="clock" aria-hidden="true"></i> Duración media por circuito</h3>
-            </div>
-            <div class="chart-wrap">
-                <canvas id="chartRacesDuration" aria-label="Duración de carreras"></canvas>
-            </div>
-        </div>
-    </section>
-    <?php endif; ?>
-
-    <!-- ─── EQUIPOS ──────────────────────────────────── -->
-    <?php if (in_array('teams', $visible)): ?>
-    <section class="section" data-section="teams" aria-labelledby="h-teams">
-        <div class="section-header">
-            <h2 id="h-teams">Equipos</h2>
-            <p class="section-sub">Equipos participantes en el campeonato</p>
-        </div>
-
-        <div class="kpi-grid kpi-grid--sm" id="teamsKpiGrid">
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-        </div>
-
-        <div class="charts-row mt-4">
-            <div class="card chart-card">
+            <div class="card">
                 <div class="card-header">
-                    <h3><i data-lucide="users" aria-hidden="true"></i> Equipos</h3>
-                    <input type="search" id="teamSearch" placeholder="Buscar…"
-                           class="search-input" aria-label="Buscar equipo">
+                    <h3><i data-lucide="car" width="15" height="15" aria-hidden="true"></i> Vehículos</h3>
                 </div>
-                <div class="table-wrap" id="teamsTableWrap">
-                    <div class="sk-block"><div class="sk-line sk-l"></div><div class="sk-line sk-s"></div></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th>Modelo</th><th>Especificaciones</th>
+                        </tr></thead>
+                        <tbody id="vehiclesBody">
+                            <tr><td colspan="2" class="empty-state-cell">Cargando...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            <div class="card chart-card">
+        </section>
+        <?php endif; ?>
+
+        <!-- ── PENALIZACIONES ── -->
+        <?php if (in_array('penalizaciones', $visible)): ?>
+        <section class="section" id="sec-penalizaciones" aria-label="Penalizaciones">
+            <div class="section-header">
+                <h2>Penalizaciones</h2>
+                <p class="section-sub">Historial de penalizaciones</p>
+            </div>
+            <div class="card">
                 <div class="card-header">
-                    <h3><i data-lucide="wrench" aria-hidden="true"></i> Mecánicos por equipo</h3>
+                    <h3><i data-lucide="alert-triangle" width="15" height="15" aria-hidden="true"></i> Penalizaciones</h3>
                 </div>
-                <div class="chart-wrap">
-                    <canvas id="chartMechanics" aria-label="Mecánicos por equipo"></canvas>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th>Tipo</th><th>Motivo</th><th>Valor</th><th>Aplica a</th>
+                        </tr></thead>
+                        <tbody id="penaltiesBody">
+                            <tr><td colspan="4" class="empty-state-cell">Cargando...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </div>
-    </section>
-    <?php endif; ?>
+        </section>
+        <?php endif; ?>
 
-    <!-- ─── PENALIZACIONES ───────────────────────────── -->
-    <?php if (in_array('penalties', $visible)): ?>
-    <section class="section" data-section="penalties" aria-labelledby="h-penalties">
-        <div class="section-header">
-            <h2 id="h-penalties">Penalizaciones</h2>
-            <p class="section-sub">Historial de penalizaciones aplicadas</p>
-        </div>
-
-        <div class="kpi-grid kpi-grid--sm" id="penaltiesKpiGrid">
-            <?php foreach (['POINTS','TIME','DSQ','DNF'] as $t): ?>
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-            <?php endforeach; ?>
-        </div>
-
-        <div class="charts-row mt-4">
-            <div class="card chart-card">
+        <!-- ── RESULTADOS ── -->
+        <?php if (in_array('resultados', $visible)): ?>
+        <section class="section" id="sec-resultados" aria-label="Resultados">
+            <div class="section-header">
+                <h2>Resultados</h2>
+                <p class="section-sub">Clasificaciones de carrera</p>
+            </div>
+            <div class="card">
                 <div class="card-header">
-                    <h3><i data-lucide="alert-triangle" aria-hidden="true"></i> Penalizaciones</h3>
-                    <select id="penaltyTypeFilter" class="search-input" style="width:auto">
-                        <option value="all">Todos los tipos</option>
-                        <option value="POINTS">POINTS</option>
-                        <option value="TIME">TIME</option>
-                        <option value="DSQ">DSQ</option>
-                        <option value="DNF">DNF</option>
-                    </select>
+                    <h3><i data-lucide="trophy" width="15" height="15" aria-hidden="true"></i> Tabla de resultados</h3>
                 </div>
-                <div class="table-wrap" id="penaltiesTableWrap">
-                    <div class="sk-block"><div class="sk-line sk-l"></div><div class="sk-line sk-s"></div></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th>Pos.</th><th>Vehículo</th><th>Tiempo</th><th>Puntos equipo</th><th>Puntos piloto</th>
+                        </tr></thead>
+                        <tbody id="resultsBody">
+                            <tr><td colspan="5" class="empty-state-cell">Cargando...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            <div class="card chart-card">
+        </section>
+        <?php endif; ?>
+
+        <!-- ── INSCRIPCIONES ── -->
+        <?php if (in_array('inscripciones', $visible)): ?>
+        <section class="section" id="sec-inscripciones" aria-label="Inscripciones">
+            <div class="section-header">
+                <h2>Inscripciones</h2>
+                <p class="section-sub">Inscripciones al campeonato</p>
+            </div>
+            <div class="card">
                 <div class="card-header">
-                    <h3><i data-lucide="pie-chart" aria-hidden="true"></i> Distribución</h3>
+                    <h3><i data-lucide="clipboard-list" width="15" height="15" aria-hidden="true"></i> Inscripciones</h3>
                 </div>
-                <div class="chart-wrap chart-wrap--sm">
-                    <canvas id="chartPenaltiesDetail" aria-label="Distribución de penalizaciones"></canvas>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th>Equipo</th><th>Carrera</th><th>Vehículo</th>
+                        </tr></thead>
+                        <tbody id="inscriptionsBody">
+                            <tr><td colspan="3" class="empty-state-cell">Cargando...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </div>
-    </section>
-    <?php endif; ?>
+        </section>
+        <?php endif; ?>
 
-    <!-- ─── RESULTADOS ───────────────────────────────── -->
-    <?php if (in_array('results', $visible)): ?>
-    <section class="section" data-section="results" aria-labelledby="h-results">
-        <div class="section-header">
-            <h2 id="h-results">Resultados</h2>
-            <p class="section-sub">Clasificaciones y tiempos de carrera</p>
-        </div>
-
-        <div class="kpi-grid kpi-grid--sm" id="resultsKpiGrid">
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-        </div>
-
-        <div class="charts-row mt-4">
-            <div class="card chart-card chart-card--wide">
+        <!-- ── ESTADÍSTICAS ── -->
+        <?php if (in_array('estadisticas', $visible)): ?>
+        <section class="section" id="sec-estadisticas" aria-label="Estadísticas">
+            <div class="section-header">
+                <h2>Estadísticas</h2>
+                <p class="section-sub">Métricas globales del campeonato</p>
+            </div>
+            <div class="card">
                 <div class="card-header">
-                    <h3><i data-lucide="trophy" aria-hidden="true"></i> Tabla de resultados</h3>
+                    <h3><i data-lucide="bar-chart-2" width="15" height="15" aria-hidden="true"></i> Puntos por equipo (Top 10)</h3>
                 </div>
-                <div class="table-wrap" id="resultsTableWrap">
-                    <div class="sk-block"><div class="sk-line sk-l"></div><div class="sk-line sk-s"></div></div>
+                <div style="padding:1rem">
+                    <canvas id="chartTeamPoints" height="300"></canvas>
                 </div>
             </div>
-        </div>
-
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3><i data-lucide="trending-up" aria-hidden="true"></i> Puntos acumulados por equipo</h3>
-            </div>
-            <div class="chart-wrap">
-                <canvas id="chartResultsPoints" aria-label="Puntos acumulados"></canvas>
-            </div>
-        </div>
-    </section>
-    <?php endif; ?>
-
-    <!-- ─── ESTADÍSTICAS ─────────────────────────────── -->
-    <?php if (in_array('stats', $visible)): ?>
-    <section class="section" data-section="stats" aria-labelledby="h-stats">
-        <div class="section-header">
-            <h2 id="h-stats">Estadísticas</h2>
-            <p class="section-sub">Métricas globales del campeonato</p>
-        </div>
-
-        <div class="kpi-grid" id="statsKpiGrid">
-            <?php foreach (range(1,6) as $_): ?>
-            <div class="kpi-card skeleton"><div class="sk-line sk-s"></div><div class="sk-line sk-l"></div></div>
-            <?php endforeach; ?>
-        </div>
-
-        <div class="charts-row mt-6">
-            <div class="card chart-card">
+            <div class="card mt-6">
                 <div class="card-header">
-                    <h3><i data-lucide="bar-chart-2" aria-hidden="true"></i> Puntos equipos (top 10)</h3>
+                    <h3><i data-lucide="alert-triangle" width="15" height="15" aria-hidden="true"></i> Penalizaciones por tipo</h3>
                 </div>
-                <div class="chart-wrap">
-                    <canvas id="chartStatsTeams" aria-label="Puntos por equipo"></canvas>
+                <div style="padding:1rem">
+                    <canvas id="chartPenaltyTypes" height="260"></canvas>
                 </div>
             </div>
-            <div class="card chart-card">
+        </section>
+        <?php endif; ?>
+
+        <!-- ── MI FABRICANTE ── -->
+        <?php if (in_array('fabricante', $visible)): ?>
+        <section class="section" id="sec-fabricante" aria-label="Mi Fabricante">
+            <div class="section-header">
+                <h2>Mi Fabricante</h2>
+                <p class="section-sub">Información de tu fabricante</p>
+            </div>
+            <div class="card" id="manufacturerCard">
+                <div style="padding:1.5rem" id="manufacturerInfo">
+                    <div class="sk-line sk-l"></div>
+                    <div class="sk-line sk-s"></div>
+                </div>
+            </div>
+            <div class="card mt-6">
                 <div class="card-header">
-                    <h3><i data-lucide="pie-chart" aria-hidden="true"></i> Penalizaciones por tipo</h3>
+                    <h3><i data-lucide="users" width="15" height="15" aria-hidden="true"></i> Equipos asociados</h3>
                 </div>
-                <div class="chart-wrap chart-wrap--sm">
-                    <canvas id="chartStatsPenalties" aria-label="Penalizaciones"></canvas>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Equipo</th><th>Mecánicos</th></tr></thead>
+                        <tbody id="manufacturerTeamsBody">
+                            <tr><td colspan="2" class="empty-state-cell">Cargando...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </div>
+        </section>
+        <?php endif; ?>
 
-        <!-- Tabla de líderes -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3><i data-lucide="medal" aria-hidden="true"></i> Top 10 equipos — clasificación general</h3>
+        <!-- ── ADMINISTRACIÓN ── -->
+        <?php if (in_array('administracion', $visible)): ?>
+        <section class="section" id="sec-administracion" aria-label="Administración">
+            <div class="section-header">
+                <h2>Administración</h2>
+                <p class="section-sub">Gestión completa de datos y usuarios</p>
             </div>
-            <div class="table-wrap" id="statsLeaderboard">
-                <div class="sk-block"><div class="sk-line sk-l"></div><div class="sk-line sk-s"></div></div>
+
+            <!-- Tabs entidades -->
+            <div class="admin-tabs" role="tablist" aria-label="Entidades">
+                <?php foreach ([
+                    'pilots'  => 'Pilotos',
+                    'teams'   => 'Equipos',
+                    'vehicles'=> 'Vehículos',
+                    'races'   => 'Carreras',
+                    'circuits'=> 'Circuitos',
+                    'manufacturers' => 'Fabricantes',
+                    'penalties'=> 'Penalizaciones',
+                    'results' => 'Resultados',
+                ] as $eid => $elabel): ?>
+                <button class="admin-tab<?= $eid === 'pilots' ? ' active' : '' ?>"
+                    role="tab"
+                    data-entity="<?= $eid ?>"
+                    aria-selected="<?= $eid === 'pilots' ? 'true' : 'false' ?>">
+                    <?= $elabel ?>
+                </button>
+                <?php endforeach; ?>
             </div>
-        </div>
-    </section>
-    <?php endif; ?>
 
-    <!-- ─── MI FABRICANTE ────────────────────────────── -->
-    <?php if (in_array('manufacturer', $visible)): ?>
-    <section class="section" data-section="manufacturer" aria-labelledby="h-manufacturer">
-        <div class="section-header">
-            <h2 id="h-manufacturer">Mi Fabricante</h2>
-            <p class="section-sub">Información de tu fabricante y equipos asociados</p>
-        </div>
-        <div id="manufacturerContent">
-            <div class="sk-block"><div class="sk-line sk-l" style="height:2.5rem"></div></div>
-        </div>
-    </section>
-    <?php endif; ?>
+            <div class="card mt-6">
+                <div class="card-header">
+                    <h3 id="adminTableTitle"><i data-lucide="database" width="15" height="15" aria-hidden="true"></i> Datos</h3>
+                    <button class="btn-add" id="btnAdminAdd" aria-label="Añadir registro">
+                        <i data-lucide="plus" width="14" height="14" aria-hidden="true"></i>
+                        Añadir
+                    </button>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead id="adminTableHead"><tr><th>—</th></tr></thead>
+                        <tbody id="adminTableBody">
+                            <tr><td class="empty-state-cell">Selecciona una entidad</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+        <?php endif; ?>
 
-    </div><!-- /.content -->
-</main>
+    </main>
+</div>
+
+<!-- Modal CRUD -->
+<div class="modal-overlay" id="crudModalOverlay" hidden aria-modal="true" role="dialog" aria-labelledby="crudModalTitle">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="crudModalTitle">Añadir</h3>
+            <button class="modal-close" id="crudModalClose" aria-label="Cerrar">
+                <i data-lucide="x" width="18" height="18" aria-hidden="true"></i>
+            </button>
+        </div>
+        <form id="crudModalForm" class="modal-body" novalidate>
+            <div id="crudModalFields"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn-ghost-sm" id="crudModalCancel">Cancelar</button>
+                <button type="submit" class="btn-primary-sm" id="crudModalSubmit">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
 <!-- Datos para JS -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <script>
     window.WEC = {
-        userId: <?= $userId ?>,
-        role:   <?= json_encode($role) ?>,
+        userId:  <?= $userId ?>,
+        role:    <?= json_encode($role) ?>,
         visible: <?= json_encode($visible) ?>
     };
 </script>

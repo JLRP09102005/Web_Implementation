@@ -1,722 +1,593 @@
 'use strict';
+
 (function () {
 
-const { userId, role, visible } = window.WEC;
+// ── Estado ───────────────────────────────────────────────────
+const WEC      = window.WEC || { userId: 0, role: '', visible: [] };
+const loaded   = new Set();
+let   adminEntity = 'pilots';
+let   adminRows   = [];
 
-// ═══════════════════════════════════════════════════
-// NAVEGACIÓN
-// ═══════════════════════════════════════════════════
-const navItems    = document.querySelectorAll('.nav-item');
-const sections    = document.querySelectorAll('.section');
-const topbarTitle = document.getElementById('topbarTitle');
-const titles = {
-    overview:'Panel', pilots:'Pilotos', vehicles:'Vehículos',
-    races:'Carreras', teams:'Equipos', penalties:'Penalizaciones',
-    results:'Resultados', stats:'Estadísticas', manufacturer:'Mi Fabricante'
-};
+// ── Init ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.lucide) lucide.createIcons();
 
-function navigateTo(id) {
-    navItems.forEach(b => {
-        const on = b.dataset.section === id;
-        b.classList.toggle('active', on);
-        b.setAttribute('aria-current', on ? 'page' : 'false');
-    });
-    sections.forEach(s => s.classList.toggle('active', s.dataset.section === id));
-    topbarTitle.textContent = titles[id] ?? id;
-    closeSidebar();
-    lazyLoad(id);
-}
-navItems.forEach(b => b.addEventListener('click', () => navigateTo(b.dataset.section)));
+    initNav();
+    initSidebar();
+    initLogout();
 
-// ═══════════════════════════════════════════════════
-// SIDEBAR MOBILE
-// ═══════════════════════════════════════════════════
-const sidebar  = document.getElementById('sidebar');
-const overlay  = document.getElementById('overlay');
-const menuBtn  = document.getElementById('menuBtn');
-const closeBtn = document.getElementById('sidebarClose');
+    // Cargar panel al inicio
+    loadSection('panel');
 
-function openSidebar()  {
-    sidebar.classList.add('open');
-    overlay.classList.add('visible');
-    overlay.removeAttribute('aria-hidden');
-    menuBtn.setAttribute('aria-expanded','true');
-}
-function closeSidebar() {
-    sidebar.classList.remove('open');
-    overlay.classList.remove('visible');
-    overlay.setAttribute('aria-hidden','true');
-    menuBtn.setAttribute('aria-expanded','false');
-}
-menuBtn.addEventListener('click', openSidebar);
-closeBtn.addEventListener('click', closeSidebar);
-overlay.addEventListener('click', closeSidebar);
-
-// ═══════════════════════════════════════════════════
-// LOGOUT
-// ═══════════════════════════════════════════════════
-document.getElementById('logoutBtn').addEventListener('click', async () => {
-    try {
-        const res  = await fetch('/logout', { method:'POST' });
-        const data = await res.json();
-        if (data.success) window.location.href = data.redirect ?? '/login';
-    } catch { window.location.href = '/login'; }
+    // Admin tabs
+    if (WEC.visible.includes('administracion')) {
+        initAdminTabs();
+        initAdminModal();
+    }
 });
 
-// ═══════════════════════════════════════════════════
-// LUCIDE — se llama aquí (scripts ya cargados antes que este archivo)
-// ═══════════════════════════════════════════════════
-if (window.lucide) lucide.createIcons();
-
-// ═══════════════════════════════════════════════════
-// LAZY LOAD
-// ═══════════════════════════════════════════════════
-const loaded = new Set();
-function lazyLoad(id) {
-    if (loaded.has(id)) return;
-    loaded.add(id);
-    const fn = {
-        overview: loadOverview, pilots: loadPilots, vehicles: loadVehicles,
-        races: loadRaces, teams: loadTeams, penalties: loadPenalties,
-        results: loadResults, stats: loadStats, manufacturer: loadManufacturer
-    }[id];
-    if (fn) fn();
+// ── Navegación ───────────────────────────────────────────────
+function initNav() {
+    document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.section;
+            showSection(id);
+            closeSidebar();
+        });
+    });
 }
-lazyLoad('overview');
 
-// ═══════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════
-async function api(url) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
+function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(b => {
+        b.classList.toggle('active', b.dataset.section === id);
+        b.setAttribute('aria-current', b.dataset.section === id ? 'page' : 'false');
+    });
+
+    const sec = document.getElementById('sec-' + id);
+    if (sec) sec.classList.add('active');
+
+    const labels = {
+        panel: 'Panel', carreras: 'Carreras', pilotos: 'Pilotos',
+        equipos: 'Equipos', vehiculos: 'Vehículos', penalizaciones: 'Penalizaciones',
+        resultados: 'Resultados', inscripciones: 'Inscripciones',
+        estadisticas: 'Estadísticas', fabricante: 'Mi Fabricante', administracion: 'Administración'
+    };
+    const title = document.getElementById('topbarTitle');
+    if (title) title.textContent = labels[id] || id;
+
+    if (!loaded.has(id)) {
+        loadSection(id);
+        loaded.add(id);
+    }
+}
+
+// ── Carga de datos por sección ────────────────────────────────
+function loadSection(id) {
+    switch (id) {
+        case 'panel':          loadOverview();      break;
+        case 'carreras':       loadTable('/api/races',       'racesBody',        renderRaceRow);         break;
+        case 'pilotos':        loadTable('/api/pilots',      'pilotsBody',       renderPilotRow);        break;
+        case 'equipos':        loadTable('/api/teams',       'teamsBody',        renderTeamRow);         break;
+        case 'vehiculos':      loadTable('/api/vehicles',    'vehiclesBody',     renderVehicleRow);      break;
+        case 'penalizaciones': loadTable('/api/penalties',   'penaltiesBody',    renderPenaltyRow);      break;
+        case 'resultados':     loadTable('/api/results',     'resultsBody',      renderResultRow);       break;
+        case 'inscripciones':  loadTable('/api/inscriptions','inscriptionsBody', renderInscriptionRow);  break;
+        case 'estadisticas':   loadStats();          break;
+        case 'fabricante':     loadManufacturer();   break;
+        case 'administracion': loadAdminEntity(adminEntity); break;
+    }
+}
+
+// ── Overview / Panel ─────────────────────────────────────────
+async function loadOverview() {
+    try {
+        const data = await apiFetch('/api/overview');
+        if (data.error) return;
+
+        const kpis = [
+            { label: 'Carreras',       value: data.total_races,     cls: 'kpi-accent' },
+            { label: 'Pilotos',        value: data.total_pilots,    cls: '' },
+            { label: 'Equipos',        value: data.total_teams,     cls: '' },
+            { label: 'Vehículos',      value: data.total_vehicles,  cls: '' },
+            { label: 'Penalizaciones', value: data.total_penalties, cls: 'kpi-warning' },
+        ].filter(k => k.value !== undefined && k.value !== null && k.value !== '');
+
+        const grid = document.getElementById('kpiGrid');
+        if (grid) {
+            grid.innerHTML = kpis.map(k => `
+                <div class="kpi-card">
+                    <span class="kpi-label">${k.label}</span>
+                    <span class="kpi-value ${k.cls}">${k.value}</span>
+                </div>`).join('');
+        }
+
+        const races = data.races || [];
+        const tbody = document.getElementById('overviewRacesBody');
+        if (tbody) {
+            tbody.innerHTML = races.length
+                ? races.map(r => renderRaceRow(r)).join('')
+                : '<tr><td colspan="5" class="empty-state-cell">Sin carreras registradas</td></tr>';
+        }
+    } catch (e) {
+        console.error('overview error', e);
+    }
+}
+
+// ── Loader genérico de tablas ─────────────────────────────────
+async function loadTable(endpoint, tbodyId, renderFn) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+
+    try {
+        const rows = await apiFetch(endpoint);
+        if (!Array.isArray(rows) || rows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="99" class="empty-state-cell">Sin datos disponibles</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = rows.map(renderFn).join('');
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="99" class="empty-state-cell error-cell">Error al cargar datos</td></tr>`;
+        console.error(endpoint, e);
+    }
+}
+
+// ── Row renderers ─────────────────────────────────────────────
+function renderRaceRow(r) {
+    return `<tr>
+        <td>${esc(r.event_name ?? r.race_name ?? '—')}</td>
+        <td>${esc(r.circuit_name ?? '—')}</td>
+        <td>${esc(r.country ?? '—')}</td>
+        <td>${formatDate(r.event_date ?? r.date)}</td>
+        <td>${esc(r.event_duration ?? r.duration ?? '—')}</td>
+    </tr>`;
+}
+
+function renderPilotRow(r) {
+    return `<tr>
+        <td>${esc(r.pilot_name ?? r.name ?? '—')}</td>
+        <td>${esc(r.pilot_age ?? r.age ?? '—')}</td>
+        <td>${esc(r.category_name ?? r.pilot_category ?? r.category ?? '—')}</td>
+    </tr>`;
+}
+
+function renderTeamRow(r) {
+    return `<tr>
+        <td>${esc(r.team_name ?? r.name ?? '—')}</td>
+        <td>${esc(r.manufacturer_name ?? r.manufacturer ?? '—')}</td>
+        <td>${esc(r.mechanic_num ?? r.mechanics ?? '—')}</td>
+    </tr>`;
+}
+
+function renderVehicleRow(r) {
+    const specs = r.specifications_url
+        ? `<a href="${esc(r.specifications_url)}" target="_blank" rel="noopener" class="link-specs">Ver specs</a>`
+        : '—';
+    return `<tr>
+        <td>${esc(r.model ?? '—')}</td>
+        <td>${specs}</td>
+    </tr>`;
+}
+
+function renderPenaltyRow(r) {
+    return `<tr>
+        <td><span class="badge badge-red">${esc(r.penalty_type ?? '—')}</span></td>
+        <td>${esc(r.reason ?? '—')}</td>
+        <td>${esc(r.penalty_value ?? '—')}</td>
+        <td>${esc(r.penalty_applies_to ?? '—')}</td>
+    </tr>`;
+}
+
+function renderResultRow(r) {
+    const pos = r.position ?? r.pos ?? '—';
+    const posCls = pos === 1 ? 'kpi-accent' : '';
+    return `<tr>
+        <td><strong class="${posCls}">${pos}</strong></td>
+        <td>${esc(r.vehicle_model ?? r.model ?? r.id_vehicle ?? '—')}</td>
+        <td>${esc(r.final_time ?? '—')}</td>
+        <td>${esc(r.base_points_team ?? '—')}</td>
+        <td>${esc(r.base_points_pilot ?? '—')}</td>
+    </tr>`;
+}
+
+function renderInscriptionRow(r) {
+    return `<tr>
+        <td>${esc(r.team_name ?? r.team ?? '—')}</td>
+        <td>${esc(r.event_name ?? r.race ?? '—')}</td>
+        <td>${esc(r.model ?? r.vehicle ?? '—')}</td>
+    </tr>`;
+}
+
+// ── Estadísticas ─────────────────────────────────────────────
+async function loadStats() {
+    try {
+        const data = await apiFetch('/api/stats');
+        if (data.error) return;
+
+        const teamPoints  = data.team_points  || {};
+        const penTypes    = data.penalty_types || {};
+
+        renderBarChart('chartTeamPoints', Object.keys(teamPoints), Object.values(teamPoints), 'Puntos');
+        renderDoughnutChart('chartPenaltyTypes', Object.keys(penTypes), Object.values(penTypes));
+    } catch (e) {
+        console.error('stats error', e);
+    }
+}
+
+function renderBarChart(canvasId, labels, values, label) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label,
+                data: values,
+                backgroundColor: 'rgba(225,6,0,0.7)',
+                borderColor: '#e10600',
+                borderWidth: 1,
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: '#7a7a85' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                y: { ticks: { color: '#7a7a85' }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true }
+            }
+        }
+    });
+}
+
+function renderDoughnutChart(canvasId, labels, values) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    const colors = ['#e10600','#ff6b6b','#ff9a5c','#ffd166','#06d6a0','#118ab2','#7b2d8b','#c77dff'];
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: '#18181c',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#7a7a85', padding: 16 } }
+            }
+        }
+    });
+}
+
+// ── Mi Fabricante ─────────────────────────────────────────────
+async function loadManufacturer() {
+    try {
+        const data = await apiFetch('/api/manufacturer');
+        const info = document.getElementById('manufacturerInfo');
+        if (info) {
+            if (data.error) {
+                info.innerHTML = `<p class="text-muted">Sin datos de fabricante</p>`;
+            } else {
+                info.innerHTML = `
+                    <div class="mfr-info">
+                        <div class="mfr-name">${esc(data.manufacturer_name ?? data.name ?? '—')}</div>
+                        <div class="mfr-country text-muted">${esc(data.manufacturer_country ?? data.country ?? '—')}</div>
+                    </div>`;
+            }
+        }
+        const teams = data.teams || [];
+        const tbody = document.getElementById('manufacturerTeamsBody');
+        if (tbody) {
+            tbody.innerHTML = teams.length
+                ? teams.map(t => `<tr><td>${esc(t.team_name??'—')}</td><td>${esc(t.mechanic_num??'—')}</td></tr>`).join('')
+                : '<tr><td colspan="2" class="empty-state-cell">Sin equipos asociados</td></tr>';
+        }
+    } catch (e) {
+        console.error('manufacturer error', e);
+    }
+}
+
+// ── Administración ────────────────────────────────────────────
+const entityConfig = {
+    pilots:        { label: 'Pilotos',       cols: ['pilot_name','pilot_age','category_name'],     keys: ['pilot_name','pilot_age','category_name'],     idKey: 'id_pilot' },
+    teams:         { label: 'Equipos',       cols: ['team_name','manufacturer_name','mechanic_num'], keys: ['team_name','mechanic_num','manufacturer_name'], idKey: 'id_team' },
+    vehicles:      { label: 'Vehículos',     cols: ['model','specifications_url'],                 keys: ['model','specifications_url'],                 idKey: 'id_vehicle' },
+    races:         { label: 'Carreras',      cols: ['event_name','circuit_name','event_date','event_duration'], keys: ['event_name','event_date','event_duration','id_circuit'], idKey: 'id_race' },
+    circuits:      { label: 'Circuitos',     cols: ['circuit_name','country','length_km','direction'], keys: ['circuit_name','country','length_km','direction'], idKey: 'circuit_id' },
+    manufacturers: { label: 'Fabricantes',   cols: ['manufacturer_name','manufacturer_country'],   keys: ['manufacturer_name','manufacturer_country'],   idKey: 'id_manufacturer' },
+    penalties:     { label: 'Penalizaciones',cols: ['penalty_type','reason','penalty_value','penalty_applies_to'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to'], idKey: 'id_penalty' },
+    results:       { label: 'Resultados',    cols: ['position','final_time','id_vehicle'],         keys: ['position','final_time','penalty_time','base_points_team','base_points_pilot','penalty_points_team','penalty_points_pilot','id_vehicle'], idKey: 'id_result' },
+};
+
+function initAdminTabs() {
+    document.querySelectorAll('.admin-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.admin-tab').forEach(t => {
+                t.classList.remove('active');
+                t.setAttribute('aria-selected', 'false');
+            });
+            tab.classList.add('active');
+            tab.setAttribute('aria-selected', 'true');
+            adminEntity = tab.dataset.entity;
+            adminRows   = [];
+            loadAdminEntity(adminEntity);
+        });
+    });
+}
+
+async function loadAdminEntity(entity) {
+    const cfg   = entityConfig[entity];
+    if (!cfg) return;
+
+    const thead = document.getElementById('adminTableHead');
+    const tbody = document.getElementById('adminTableBody');
+    const title = document.getElementById('adminTableTitle');
+    if (!thead || !tbody) return;
+
+    if (title) title.innerHTML = `<i data-lucide="database" width="15" height="15" aria-hidden="true"></i> ${cfg.label}`;
+
+    thead.innerHTML = `<tr>${cfg.cols.map(c => `<th>${colLabel(c)}</th>`).join('')}<th style="width:80px">Acciones</th></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 1}" class="empty-state-cell">Cargando...</td></tr>`;
+
+    if (window.lucide) lucide.createIcons();
+
+    try {
+        const rows = await apiFetch(`/api/admin/list?entity=${entity}`);
+        adminRows = Array.isArray(rows) ? rows : [];
+
+        if (!adminRows.length) {
+            tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 1}" class="empty-state-cell">Sin registros</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = adminRows.map((row, idx) => `
+            <tr>
+                ${cfg.cols.map(c => `<td>${esc(row[c] ?? '—')}</td>`).join('')}
+                <td>
+                    <div class="action-btns">
+                        <button class="btn-action btn-edit" data-idx="${idx}" aria-label="Editar">
+                            <i data-lucide="pencil" width="13" height="13" aria-hidden="true"></i>
+                        </button>
+                        <button class="btn-action btn-delete" data-idx="${idx}" aria-label="Eliminar">
+                            <i data-lucide="trash-2" width="13" height="13" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>`).join('');
+
+        if (window.lucide) lucide.createIcons();
+
+        tbody.querySelectorAll('.btn-edit').forEach(btn =>
+            btn.addEventListener('click', () => openEditModal(entity, adminRows[+btn.dataset.idx]))
+        );
+        tbody.querySelectorAll('.btn-delete').forEach(btn =>
+            btn.addEventListener('click', () => confirmDelete(entity, adminRows[+btn.dataset.idx]))
+        );
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="${entityConfig[entity].cols.length + 1}" class="empty-state-cell error-cell">Error al cargar</td></tr>`;
+    }
+}
+
+function initAdminModal() {
+    const btnAdd  = document.getElementById('btnAdminAdd');
+    const overlay = document.getElementById('crudModalOverlay');
+    const btnClose  = document.getElementById('crudModalClose');
+    const btnCancel = document.getElementById('crudModalCancel');
+    const form    = document.getElementById('crudModalForm');
+
+    if (btnAdd) btnAdd.addEventListener('click', () => openInsertModal(adminEntity));
+    if (btnClose)  btnClose.addEventListener('click',  closeModal);
+    if (btnCancel) btnCancel.addEventListener('click', closeModal);
+    if (overlay) overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+    if (form) {
+        form.addEventListener('submit', async e => {
+            e.preventDefault();
+            const action = form.dataset.action;
+            const entity = form.dataset.entity;
+            const data   = {};
+            new FormData(form).forEach((v, k) => data[k] = v);
+
+            try {
+                const res = await apiFetch('/api/admin/crud', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, entity, data })
+                });
+
+                if (res.success) {
+                    closeModal();
+                    showToast(action === 'insert' ? 'Registro añadido' : 'Registro actualizado', 'success');
+                    adminRows = [];
+                    loadAdminEntity(entity);
+                } else {
+                    showToast(res.message || 'Error al guardar', 'error');
+                }
+            } catch (err) {
+                showToast('Error de conexión', 'error');
+            }
+        });
+    }
+}
+
+function openInsertModal(entity) {
+    const cfg = entityConfig[entity];
+    if (!cfg) return;
+    const form = document.getElementById('crudModalForm');
+    form.dataset.action = 'insert';
+    form.dataset.entity = entity;
+    document.getElementById('crudModalTitle').textContent = `Añadir ${cfg.label}`;
+    document.getElementById('crudModalFields').innerHTML = cfg.keys.map(k =>
+        `<div class="field-group">
+            <label class="field-label" for="f_${k}">${colLabel(k)}</label>
+            <input class="field-input" id="f_${k}" name="${k}" type="${inputType(k)}" placeholder="${colLabel(k)}" required>
+        </div>`
+    ).join('');
+    openModal();
+}
+
+function openEditModal(entity, row) {
+    const cfg = entityConfig[entity];
+    if (!cfg) return;
+    const form = document.getElementById('crudModalForm');
+    form.dataset.action  = 'update';
+    form.dataset.entity  = entity;
+    document.getElementById('crudModalTitle').textContent = `Editar ${cfg.label}`;
+    document.getElementById('crudModalFields').innerHTML =
+        `<input type="hidden" name="${cfg.idKey}" value="${esc(row[cfg.idKey] ?? '')}">` +
+        cfg.keys.map(k =>
+            `<div class="field-group">
+                <label class="field-label" for="f_${k}">${colLabel(k)}</label>
+                <input class="field-input" id="f_${k}" name="${k}" type="${inputType(k)}" value="${esc(row[k] ?? '')}" required>
+            </div>`
+        ).join('');
+    openModal();
+}
+
+async function confirmDelete(entity, row) {
+    const cfg = entityConfig[entity];
+    if (!cfg) return;
+    if (!confirm(`¿Eliminar este registro de ${cfg.label}?`)) return;
+
+    try {
+        const res = await apiFetch('/api/admin/crud', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete', entity, data: { [cfg.idKey]: row[cfg.idKey] } })
+        });
+        if (res.success) {
+            showToast('Registro eliminado', 'success');
+            adminRows = [];
+            loadAdminEntity(entity);
+        } else {
+            showToast(res.message || 'Error al eliminar', 'error');
+        }
+    } catch (e) {
+        showToast('Error de conexión', 'error');
+    }
+}
+
+function openModal() {
+    const overlay = document.getElementById('crudModalOverlay');
+    overlay.hidden = false;
+    setTimeout(() => overlay.classList.add('visible'), 10);
+    if (window.lucide) lucide.createIcons();
+    overlay.querySelector('.modal').querySelector('input')?.focus();
+}
+
+function closeModal() {
+    const overlay = document.getElementById('crudModalOverlay');
+    overlay.classList.remove('visible');
+    setTimeout(() => { overlay.hidden = true; }, 200);
+}
+
+// ── Logout ───────────────────────────────────────────────────
+function initLogout() {
+    const btn = document.getElementById('logoutBtn');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+        try {
+            const res = await fetch('/logout', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) window.location.href = data.redirect || '/login';
+        } catch {
+            window.location.href = '/login';
+        }
+    });
+}
+
+// ── Sidebar móvil ─────────────────────────────────────────────
+function initSidebar() {
+    const sidebar  = document.getElementById('sidebar');
+    const overlay  = document.getElementById('overlay');
+    const btnMenu  = document.getElementById('btnMenu');
+    const btnClose = document.getElementById('sidebarClose');
+
+    if (btnMenu)  btnMenu.addEventListener('click',  openSidebar);
+    if (btnClose) btnClose.addEventListener('click', closeSidebar);
+    if (overlay)  overlay.addEventListener('click',  closeSidebar);
+}
+
+function openSidebar() {
+    document.getElementById('sidebar')?.classList.add('open');
+    document.getElementById('overlay')?.classList.add('visible');
+    document.getElementById('btnMenu')?.setAttribute('aria-expanded', 'true');
+}
+
+function closeSidebar() {
+    document.getElementById('sidebar')?.classList.remove('open');
+    document.getElementById('overlay')?.classList.remove('visible');
+    document.getElementById('btnMenu')?.setAttribute('aria-expanded', 'false');
+}
+
+// ── Toast ─────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3500);
+}
+
+// ── API fetch ─────────────────────────────────────────────────
+async function apiFetch(url, options = {}) {
+    const res = await fetch(url, options);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
 
-function esc(v) {
-    if (v == null) return '—';
-    return String(v)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function rows(data) { return Array.isArray(data) ? data : (data?.data ?? []); }
-
-function table(headers, data, cols) {
-    if (!data.length) return emptyState('Sin datos disponibles');
-    const ths = headers.map(h => `<th scope="col">${esc(h)}</th>`).join('');
-    const trs = data.map(r =>
-        `<tr>${cols.map(c => `<td>${r.__html?.[c] ?? esc(r[c])}</td>`).join('')}</tr>`
-    ).join('');
-    return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
-}
-
-function emptyState(msg) {
-    return `<div class="empty-state">
-        <i data-lucide="inbox"></i><span>${esc(msg)}</span>
-    </div>`;
-}
-function errState(msg) {
-    return `<div class="empty-state" style="color:var(--error)">
-        <i data-lucide="alert-circle"></i><span>${esc(msg)}</span>
-    </div>`;
-}
-function noDataChart(canvasId, msg) {
-    const el = document.getElementById(canvasId);
-    if (!el) return;
-    const wrap = el.closest('.chart-wrap');
-    if (wrap) wrap.innerHTML = `<div class="empty-state" style="padding:2rem;height:100%;align-items:center;justify-content:center">
-        <i data-lucide="bar-chart-2" style="opacity:.3;width:40px;height:40px"></i>
-        <span style="color:var(--text-muted);font-size:.85rem">${esc(msg)}</span>
-    </div>`;
-    reIcons(wrap ?? el.parentElement);
-}
-function setWrap(id, html) {
-    const el = document.getElementById(id);
-    if (el) { el.innerHTML = html; reIcons(el); }
-}
-function reIcons(el) { if (window.lucide) lucide.createIcons({ nodes: [el] }); }
-
-function kpiCard(label, value, cls = '') {
-    return `<div class="kpi-card">
-        <span class="kpi-label">${esc(label)}</span>
-        <span class="kpi-value ${cls}">${value}</span>
-    </div>`;
-}
-
-function badge(text, cls) {
-    return `<span class="badge badge-${cls}">${esc(text)}</span>`;
-}
-
-function penaltyBadge(type) {
-    const map = { POINTS:'yellow', TIME:'gray', DSQ:'red', DNF:'red' };
-    return badge(type, map[type] ?? 'gray');
+// ── Helpers ───────────────────────────────────────────────────
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function formatDate(d) {
     if (!d) return '—';
-    try { return new Date(d).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}); }
-    catch { return d; }
-}
-
-const CHART_COLORS = [
-    'rgba(225,6,0,.8)', 'rgba(245,158,11,.8)', 'rgba(34,197,94,.8)',
-    'rgba(59,130,246,.8)', 'rgba(168,85,247,.8)', 'rgba(236,72,153,.8)',
-    'rgba(20,184,166,.8)', 'rgba(249,115,22,.8)'
-];
-const chartDefaults = {
-    plugins: { legend: { labels: { color:'#7a7a85', font:{ size:11 } } } },
-    scales: {
-        x: { ticks:{ color:'#7a7a85', font:{size:11} }, grid:{ color:'rgba(255,255,255,.04)' } },
-        y: { ticks:{ color:'#7a7a85', font:{size:11} }, grid:{ color:'rgba(255,255,255,.06)' } }
-    }
-};
-function mkChart(id, cfg) {
-    const el = document.getElementById(id);
-    if (!el || !window.Chart) return null;
-    return new Chart(el, cfg);
-}
-
-// ═══════════════════════════════════════════════════
-// OVERVIEW
-// ═══════════════════════════════════════════════════
-async function loadOverview() {
     try {
-        const [ov, penalties, results] = await Promise.all([
-            api('/api/overview'),
-            visible.includes('penalties') ? api('/api/penalties') : Promise.resolve([]),
-            visible.includes('results')   ? api('/api/results')   : Promise.resolve([]),
-        ]);
-
-        // KPIs
-        const g = document.getElementById('kpiGrid');
-        if (g) {
-            g.innerHTML =
-                kpiCard('Carreras totales',  ov.total_races     ?? '—', 'kpi-accent')  +
-                kpiCard('Pilotos',           ov.total_pilots    ?? '—')                 +
-                kpiCard('Equipos',           ov.total_teams     ?? '—', 'kpi-success') +
-                kpiCard('Penalizaciones',    ov.total_penalties ?? '—', 'kpi-warning');
-            reIcons(g);
-        }
-
-        // Próximas carreras — fallback a las más recientes si no hay futuras
-        const raceList = rows(ov.races ?? []);
-        const now = Date.now();
-        let upcoming = raceList
-            .filter(r => new Date(r.event_date).getTime() >= now)
-            .sort((a,b) => new Date(a.event_date) - new Date(b.event_date))
-            .slice(0,5);
-        if (!upcoming.length) {
-            upcoming = [...raceList]
-                .sort((a,b) => new Date(b.event_date) - new Date(a.event_date))
-                .slice(0,5);
-        }
-        setWrap('upcomingRacesWrap', upcoming.length
-            ? table(
-                upcoming.some(r => new Date(r.event_date).getTime() >= now)
-                    ? ['Carrera','Circuito','País','Fecha','Duración']
-                    : ['Carrera','Circuito','País','Fecha (pasada)','Duración'],
-                upcoming.map(r => ({ ...r, event_date: formatDate(r.event_date) })),
-                ['event_name','circuit_name','country','event_date','event_duration'])
-            : emptyState('No hay carreras registradas')
-        );
-
-        // Chart: puntos por equipo (de results)
-        const res = rows(results);
-        if (res.length) {
-            const tp = {};
-            res.forEach(r => {
-                const k = r.id_team ?? '?';
-                tp[k] = (tp[k]??0) + (parseInt(r.base_points_team,10)||0);
-            });
-            const labels = Object.keys(tp).slice(0,10);
-            mkChart('chartTeamPoints', {
-                type:'bar',
-                data:{ labels, datasets:[{
-                    label:'Puntos', data: labels.map(k=>tp[k]),
-                    backgroundColor:'rgba(225,6,0,.7)',
-                    borderColor:'rgba(225,6,0,1)', borderWidth:1, borderRadius:4
-                }]},
-                options:{ responsive:true, maintainAspectRatio:false,
-                    plugins:{ legend:{display:false} }, scales: chartDefaults.scales }
-            });
-        } else {
-            noDataChart('chartTeamPoints', 'Sin datos de puntos para este rol');
-        }
-
-        // Chart: tipos penalización (doughnut)
-        const pen = rows(penalties);
-        if (pen.length) {
-            const tc = {};
-            pen.forEach(p => { tc[p.penalty_type] = (tc[p.penalty_type]??0)+1; });
-            const labels = Object.keys(tc);
-            mkChart('chartPenaltyTypes',{
-                type:'doughnut',
-                data:{ labels, datasets:[{
-                    data: labels.map(k=>tc[k]),
-                    backgroundColor: CHART_COLORS.slice(0,labels.length),
-                    borderColor:'var(--surface)', borderWidth:3
-                }]},
-                options:{ responsive:true, maintainAspectRatio:false,
-                    plugins:{ legend:{ position:'bottom', labels:{color:'#7a7a85',font:{size:11},padding:12} } } }
-            });
-        } else {
-            noDataChart('chartPenaltyTypes', 'Sin penalizaciones registradas');
-        }
-
-        // Chart: carreras por país (bar horizontal)
-        const raceData = rows(ov.races ?? []);
-        if (raceData.length) {
-            const cp = {};
-            raceData.forEach(r => { const c = r.country??'?'; cp[c]=(cp[c]??0)+1; });
-            const labels = Object.keys(cp);
-            mkChart('chartRacesByCountry',{
-                type:'bar',
-                data:{ labels, datasets:[{
-                    label:'Carreras', data: labels.map(k=>cp[k]),
-                    backgroundColor:'rgba(59,130,246,.7)', borderRadius:4
-                }]},
-                options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
-                    plugins:{ legend:{display:false} }, scales:{
-                        x:{ ticks:{color:'#7a7a85',font:{size:11}}, grid:{color:'rgba(255,255,255,.04)'} },
-                        y:{ ticks:{color:'#7a7a85',font:{size:11}}, grid:{color:'rgba(255,255,255,.04)'} }
-                    } }
-            });
-        } else {
-            noDataChart('chartRacesByCountry', 'Sin datos de carreras');
-        }
-
-        reIcons(document.body);
-    } catch(e) { setWrap('kpiGrid', errState('Error cargando el panel: '+e.message)); }
+        return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(d));
+    } catch { return d; }
 }
 
-// ═══════════════════════════════════════════════════
-// PILOTOS
-// ═══════════════════════════════════════════════════
-async function loadPilots() {
-    try {
-        const data = await api('/api/pilots');
-        let list = rows(data);
-
-        // KPIs
-        const cats = {};
-        list.forEach(p => { cats[p.pilot_category_name??'?'] = (cats[p.pilot_category_name??'?']??0)+1; });
-        const catNames = Object.keys(cats);
-        const g = document.getElementById('pilotsKpiGrid');
-        if (g) {
-            g.innerHTML =
-                kpiCard('Total pilotos', list.length) +
-                kpiCard('Categorías', catNames.length, 'kpi-accent') +
-                kpiCard('Edad media', list.length
-                    ? Math.round(list.reduce((s,p)=>s+(parseInt(p.pilot_age,10)||0),0)/list.length)
-                    : '—');
-            reIcons(g);
-        }
-
-        function renderPilots(arr) {
-            setWrap('pilotsTableWrap',
-                table(['ID','Nombre','Edad','Categoría'], arr,
-                    ['id_pilot','pilot_name','pilot_age','pilot_category_name'])
-            );
-        }
-        renderPilots(list);
-
-        const s = document.getElementById('pilotSearch');
-        if (s) s.addEventListener('input', () => {
-            const q = s.value.toLowerCase();
-            renderPilots(list.filter(p =>
-                (p.pilot_name??'').toLowerCase().includes(q) ||
-                (p.pilot_category_name??'').toLowerCase().includes(q)
-            ));
-        });
-
-        if (catNames.length) {
-            mkChart('chartPilotCategories',{
-                type:'doughnut',
-                data:{ labels: catNames, datasets:[{
-                    data: catNames.map(k=>cats[k]),
-                    backgroundColor: CHART_COLORS.slice(0,catNames.length),
-                    borderColor:'var(--surface)', borderWidth:3
-                }]},
-                options:{ responsive:true, maintainAspectRatio:false,
-                    plugins:{ legend:{ position:'bottom', labels:{color:'#7a7a85',font:{size:11},padding:12} } } }
-            });
-        } else {
-            noDataChart('chartPilotCategories', 'Sin datos de categorías');
-        }
-    } catch(e) { setWrap('pilotsTableWrap', errState('Error: '+e.message)); }
+function colLabel(key) {
+    const map = {
+        pilot_name: 'Nombre', pilot_age: 'Edad', id_pilot_category: 'ID Categoría', category_name: 'Categoría',
+        team_name: 'Equipo', mechanic_num: 'Mecánicos', id_manufacturer: 'ID Fabricante', manufacturer_name: 'Fabricante',
+        manufacturer_country: 'País', model: 'Modelo', specifications_url: 'Especificaciones',
+        event_name: 'Nombre', event_date: 'Fecha', event_duration: 'Duración', id_circuit: 'ID Circuito',
+        circuit_name: 'Circuito', country: 'País', length_km: 'Longitud (km)', direction: 'Dirección',
+        username: 'Usuario', email: 'Email', password_hash: 'Contraseña', team_id: 'ID Equipo',
+        penalty_type: 'Tipo', reason: 'Motivo', penalty_value: 'Valor', penalty_applies_to: 'Aplica a',
+        position: 'Posición', final_time: 'Tiempo', penalty_time: 'T. Penalización',
+        base_points_team: 'Pts Equipo', base_points_pilot: 'Pts Piloto',
+        penalty_points_team: 'Pts Pen. Equipo', penalty_points_pilot: 'Pts Pen. Piloto', id_vehicle: 'ID Vehículo',
+        circuit_id: 'ID Circuito', id_race: 'ID Carrera', id_team: 'ID Equipo', id_pilot: 'ID Piloto',
+        id_manufacturer: 'ID Fabricante', id_penalty: 'ID Penalización', id_result: 'ID Resultado',
+    };
+    return map[key] || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-// ═══════════════════════════════════════════════════
-// VEHÍCULOS
-// ═══════════════════════════════════════════════════
-async function loadVehicles() {
-    try {
-        const data  = await api('/api/vehicles');
-        const list  = rows(data);
-        if (!list.length) { setWrap('vehiclesTableWrap', emptyState('Sin vehículos para este rol')); return; }
-        const enhanced = list.map(r => ({
-            ...r,
-            __html: {
-                specifications_url: r.specifications_url
-                    ? `<a href="${esc(r.specifications_url)}" target="_blank" rel="noopener"
-                           style="color:var(--accent);text-decoration:underline">Ver ficha</a>`
-                    : '—'
-            }
-        }));
-        setWrap('vehiclesTableWrap',
-            table(['ID','Modelo','Ficha técnica'], enhanced,
-                ['id_vehicle','model','specifications_url'])
-        );
-    } catch(e) { setWrap('vehiclesTableWrap', errState('Error: '+e.message)); }
-}
-
-// ═══════════════════════════════════════════════════
-// CARRERAS
-// ═══════════════════════════════════════════════════
-async function loadRaces() {
-    try {
-        const data = await api('/api/races');
-        let list = rows(data);
-        const now = Date.now();
-
-        const upcoming = list.filter(r => new Date(r.event_date).getTime() >= now);
-        const past     = list.filter(r => new Date(r.event_date).getTime() <  now);
-        const g = document.getElementById('racesKpiGrid');
-        if (g) {
-            g.innerHTML =
-                kpiCard('Total carreras', list.length) +
-                kpiCard('Próximas', upcoming.length, 'kpi-success') +
-                kpiCard('Disputadas', past.length, 'kpi-accent');
-            reIcons(g);
-        }
-
-        function renderRaces(arr) {
-            const mapped = arr.map(r => ({ ...r, event_date: formatDate(r.event_date) }));
-            setWrap('racesTableWrap',
-                table(['ID','Evento','Circuito','País','Fecha','Duración'], mapped,
-                    ['id_race','event_name','circuit_name','country','event_date','event_duration'])
-            );
-        }
-        renderRaces(list);
-
-        const f = document.getElementById('raceFilter');
-        if (f) f.addEventListener('change', () => {
-            const v = f.value;
-            renderRaces(v === 'upcoming' ? upcoming : v === 'past' ? past : list);
-        });
-
-        if (list.length) {
-            function timeToMin(t) {
-                if (!t) return 0;
-                const p = t.split(':').map(Number);
-                return p[0]*60 + (p[1]||0);
-            }
-            const labels = list.slice(0,10).map(r => r.event_name ?? r.id_race);
-            const vals   = list.slice(0,10).map(r => timeToMin(r.event_duration));
-            if (vals.some(v => v > 0)) {
-                mkChart('chartRacesDuration',{
-                    type:'bar',
-                    data:{ labels, datasets:[{
-                        label:'Duración (min)', data: vals,
-                        backgroundColor:'rgba(168,85,247,.7)', borderRadius:4
-                    }]},
-                    options:{ responsive:true, maintainAspectRatio:false,
-                        plugins:{ legend:{display:false} }, scales: chartDefaults.scales }
-                });
-            } else {
-                noDataChart('chartRacesDuration', 'Sin datos de duración');
-            }
-        } else {
-            noDataChart('chartRacesDuration', 'Sin carreras registradas');
-        }
-    } catch(e) { setWrap('racesTableWrap', errState('Error: '+e.message)); }
-}
-
-// ═══════════════════════════════════════════════════
-// EQUIPOS
-// ═══════════════════════════════════════════════════
-async function loadTeams() {
-    try {
-        const data = await api('/api/teams');
-        let list = rows(data);
-
-        const g = document.getElementById('teamsKpiGrid');
-        if (g) {
-            const totalMech = list.reduce((s,t)=>s+(parseInt(t.mechanics_num,10)||0),0);
-            g.innerHTML =
-                kpiCard('Total equipos', list.length, 'kpi-accent') +
-                kpiCard('Total mecánicos', totalMech);
-            reIcons(g);
-        }
-
-        function renderTeams(arr) {
-            setWrap('teamsTableWrap',
-                table(['ID','Equipo','Mecánicos','Fabricante'], arr,
-                    ['id_team','team_name','mechanics_num','manufacturer_name'])
-            );
-        }
-        renderTeams(list);
-
-        const s = document.getElementById('teamSearch');
-        if (s) s.addEventListener('input', () => {
-            const q = s.value.toLowerCase();
-            renderTeams(list.filter(t =>
-                (t.team_name??'').toLowerCase().includes(q) ||
-                (t.manufacturer_name??'').toLowerCase().includes(q)
-            ));
-        });
-
-        if (list.length) {
-            const top = list.slice(0,12);
-            mkChart('chartMechanics',{
-                type:'bar',
-                data:{ labels: top.map(t=>t.team_name), datasets:[{
-                    label:'Mecánicos', data: top.map(t=>parseInt(t.mechanics_num,10)||0),
-                    backgroundColor:'rgba(34,197,94,.7)', borderRadius:4
-                }]},
-                options:{ responsive:true, maintainAspectRatio:false,
-                    plugins:{ legend:{display:false} }, scales: chartDefaults.scales }
-            });
-        } else {
-            noDataChart('chartMechanics', 'Sin equipos para este rol');
-        }
-    } catch(e) { setWrap('teamsTableWrap', errState('Error: '+e.message)); }
-}
-
-// ═══════════════════════════════════════════════════
-// PENALIZACIONES
-// ═══════════════════════════════════════════════════
-async function loadPenalties() {
-    try {
-        const data = await api('/api/penalties');
-        let list = rows(data);
-
-        const tc = { POINTS:0, TIME:0, DSQ:0, DNF:0 };
-        list.forEach(p => { if (tc[p.penalty_type]!==undefined) tc[p.penalty_type]++; });
-        const g = document.getElementById('penaltiesKpiGrid');
-        if (g) {
-            const cls = { POINTS:'kpi-warning', TIME:'', DSQ:'kpi-accent', DNF:'kpi-accent' };
-            g.innerHTML = Object.entries(tc).map(([k,v]) => kpiCard(k, v, cls[k]??'')).join('');
-            reIcons(g);
-        }
-
-        function renderPenalties(arr) {
-            const mapped = arr.map(r => ({
-                ...r, __html:{ penalty_type: penaltyBadge(r.penalty_type) }
-            }));
-            setWrap('penaltiesTableWrap',
-                table(['ID','Tipo','Razón','Valor','Aplica a','Fecha'],
-                    mapped, ['id_penalty','penalty_type','reason','penalty_value','penalty_applies_to','created_at'])
-            );
-        }
-        renderPenalties(list);
-
-        const f = document.getElementById('penaltyTypeFilter');
-        if (f) f.addEventListener('change', () => {
-            renderPenalties(f.value === 'all' ? list : list.filter(p=>p.penalty_type===f.value));
-        });
-
-        const hasData = Object.values(tc).some(v => v > 0);
-        if (hasData) {
-            const labels = Object.keys(tc);
-            mkChart('chartPenaltiesDetail',{
-                type:'doughnut',
-                data:{ labels, datasets:[{
-                    data: labels.map(k=>tc[k]),
-                    backgroundColor: CHART_COLORS.slice(0,labels.length),
-                    borderColor:'var(--surface)', borderWidth:3
-                }]},
-                options:{ responsive:true, maintainAspectRatio:false,
-                    plugins:{ legend:{ position:'bottom', labels:{color:'#7a7a85',font:{size:11},padding:12} } } }
-            });
-        } else {
-            noDataChart('chartPenaltiesDetail', 'Sin penalizaciones registradas');
-        }
-    } catch(e) { setWrap('penaltiesTableWrap', errState('Error: '+e.message)); }
-}
-
-// ═══════════════════════════════════════════════════
-// RESULTADOS
-// ═══════════════════════════════════════════════════
-async function loadResults() {
-    try {
-        const data = await api('/api/results');
-        const list = rows(data);
-
-        const totalPtsTeam  = list.reduce((s,r)=>s+(parseInt(r.base_points_team,10)||0),0);
-        const totalPtsPilot = list.reduce((s,r)=>s+(parseInt(r.base_points_pilot,10)||0),0);
-        const g = document.getElementById('resultsKpiGrid');
-        if (g) {
-            g.innerHTML =
-                kpiCard('Resultados', list.length) +
-                kpiCard('Pts equipos totales', totalPtsTeam.toLocaleString(), 'kpi-success') +
-                kpiCard('Pts pilotos totales', totalPtsPilot.toLocaleString(), 'kpi-accent');
-            reIcons(g);
-        }
-
-        setWrap('resultsTableWrap',
-            list.length
-                ? table(['Pos.','Carrera','Equipo','Tiempo','Pen.','Pts Eq.','Pts Pil.'], list,
-                    ['position','event_name','id_team','final_time','penalty_time',
-                     'base_points_team','base_points_pilot'])
-                : emptyState('Sin resultados para este rol')
-        );
-
-        if (list.length) {
-            const tp = {};
-            list.forEach(r => {
-                const k = r.id_team ?? '?';
-                tp[k] = (tp[k]??0) + (parseInt(r.base_points_team,10)||0);
-            });
-            const sorted = Object.entries(tp).sort((a,b)=>b[1]-a[1]).slice(0,10);
-            mkChart('chartResultsPoints',{
-                type:'bar',
-                data:{ labels: sorted.map(e=>e[0]), datasets:[{
-                    label:'Puntos equipo', data: sorted.map(e=>e[1]),
-                    backgroundColor: CHART_COLORS.slice(0,sorted.length), borderRadius:4
-                }]},
-                options:{ responsive:true, maintainAspectRatio:false,
-                    plugins:{ legend:{display:false} }, scales: chartDefaults.scales }
-            });
-        } else {
-            noDataChart('chartResultsPoints', 'Sin datos de puntos para este rol');
-        }
-    } catch(e) { setWrap('resultsTableWrap', errState('Error: '+e.message)); }
-}
-
-// ═══════════════════════════════════════════════════
-// ESTADÍSTICAS
-// ═══════════════════════════════════════════════════
-async function loadStats() {
-    try {
-        const [ov, pen, res] = await Promise.all([
-            api('/api/overview'),
-            api('/api/penalties'),
-            api('/api/results'),
-        ]);
-
-        const penList = rows(pen);
-        const resList = rows(res);
-
-        const totalPts = resList.reduce((s,r)=>s+(parseInt(r.base_points_team,10)||0),0);
-        const avgPos   = resList.length
-            ? (resList.reduce((s,r)=>s+(parseInt(r.position,10)||0),0)/resList.length).toFixed(1)
-            : '—';
-        const dsnq = penList.filter(p=>p.penalty_type==='DSQ'||p.penalty_type==='DNF').length;
-        const pct  = penList.length ? Math.round(dsnq/penList.length*100) : 0;
-
-        const g = document.getElementById('statsKpiGrid');
-        if (g) {
-            g.innerHTML =
-                kpiCard('Total carreras',     ov.total_races    ?? '—', 'kpi-accent')  +
-                kpiCard('Total pilotos',      ov.total_pilots   ?? '—')                 +
-                kpiCard('Total equipos',      ov.total_teams    ?? '—', 'kpi-success') +
-                kpiCard('Pts totales equipo', totalPts.toLocaleString(), 'kpi-success') +
-                kpiCard('Pos. media',         avgPos)                                   +
-                kpiCard(`DSQ/DNF (${pct}%)`,  dsnq, 'kpi-accent');
-            reIcons(g);
-        }
-
-        if (resList.length) {
-            const tp = {};
-            resList.forEach(r => {
-                const k = r.id_team??'?';
-                tp[k] = (tp[k]??0)+(parseInt(r.base_points_team,10)||0);
-            });
-            const sorted = Object.entries(tp).sort((a,b)=>b[1]-a[1]).slice(0,10);
-            mkChart('chartStatsTeams',{
-                type:'bar',
-                data:{ labels: sorted.map(e=>e[0]), datasets:[{
-                    label:'Puntos', data: sorted.map(e=>e[1]),
-                    backgroundColor: CHART_COLORS.slice(0,sorted.length), borderRadius:4
-                }]},
-                options:{ responsive:true, maintainAspectRatio:false,
-                    plugins:{ legend:{display:false} }, scales: chartDefaults.scales }
-            });
-        } else {
-            noDataChart('chartStatsTeams', 'Sin datos de resultados para este rol');
-        }
-
-        if (penList.length) {
-            const tc = {};
-            penList.forEach(p=>{ tc[p.penalty_type]=(tc[p.penalty_type]??0)+1; });
-            const labels = Object.keys(tc);
-            mkChart('chartStatsPenalties',{
-                type:'doughnut',
-                data:{ labels, datasets:[{
-                    data: labels.map(k=>tc[k]),
-                    backgroundColor: CHART_COLORS.slice(0,labels.length),
-                    borderColor:'var(--surface)', borderWidth:3
-                }]},
-                options:{ responsive:true, maintainAspectRatio:false,
-                    plugins:{ legend:{ position:'bottom', labels:{color:'#7a7a85',font:{size:11},padding:12} } } }
-            });
-        } else {
-            noDataChart('chartStatsPenalties', 'Sin penalizaciones para este rol');
-        }
-
-        if (resList.length) {
-            const tp = {};
-            resList.forEach(r => {
-                const k = r.id_team??'?';
-                if (!tp[k]) tp[k] = { id_team:k, points:0, races:new Set() };
-                tp[k].points += (parseInt(r.base_points_team,10)||0);
-                tp[k].races.add(r.id_race??r.event_name);
-            });
-            const sorted = Object.values(tp)
-                .sort((a,b)=>b.points-a.points)
-                .slice(0,10)
-                .map((t,i)=>({ pos:i+1, id_team:t.id_team, races:t.races.size, points:t.points }));
-            setWrap('statsLeaderboard',
-                table(['#','Equipo','Carreras','Puntos'], sorted,
-                    ['pos','id_team','races','points'])
-            );
-        } else {
-            setWrap('statsLeaderboard', emptyState('Sin resultados para este rol'));
-        }
-    } catch(e) { setWrap('statsKpiGrid', errState('Error cargando estadísticas: '+e.message)); }
-}
-
-// ═══════════════════════════════════════════════════
-// MI FABRICANTE
-// ═══════════════════════════════════════════════════
-async function loadManufacturer() {
-    const wrap = document.getElementById('manufacturerContent');
-    try {
-        const data = await api('/api/manufacturer');
-        const info = Array.isArray(data) ? data[0] : data;
-        if (!info || info.error) {
-            wrap.innerHTML = `<div class="empty-state">
-                <i data-lucide="factory"></i>
-                <span>No se encontró información del fabricante.</span>
-            </div>`;
-            reIcons(wrap);
-            return;
-        }
-        wrap.innerHTML = `
-        <div class="kpi-grid kpi-grid--sm">
-            ${kpiCard('Fabricante', esc(info.manufacturer_name??'—'), 'kpi-accent')}
-            ${kpiCard('País', esc(info.manufacturer_country??'—'))}
-            ${kpiCard('ID', esc(info.id_manufacturer??'—'))}
-        </div>
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3><i data-lucide="factory" aria-hidden="true"></i>
-                    ${esc(info.manufacturer_name??'Fabricante')}</h3>
-                <span class="badge badge-gray">${esc(info.manufacturer_country??'—')}</span>
-            </div>
-            <div style="padding:1.25rem;color:var(--text-muted);font-size:.875rem">
-                <p>Fabricante oficial del campeonato registrado con ID
-                <strong style="color:var(--text)">${esc(info.id_manufacturer??'—')}</strong>,
-                originario de <strong style="color:var(--text)">${esc(info.manufacturer_country??'—')}</strong>.</p>
-            </div>
-        </div>`;
-        reIcons(wrap);
-    } catch(e) {
-        wrap.innerHTML = errState('Error cargando fabricante: '+e.message);
-        reIcons(wrap);
-    }
+function inputType(key) {
+    if (key.includes('date'))  return 'datetime-local';
+    if (key.includes('age') || key.includes('num') || key.includes('id_') || key === 'position') return 'number';
+    if (key.includes('url'))   return 'url';
+    if (key === 'email')       return 'email';
+    if (key === 'password_hash') return 'password';
+    if (key.includes('km') || key.includes('value')) return 'number';
+    return 'text';
 }
 
 })();

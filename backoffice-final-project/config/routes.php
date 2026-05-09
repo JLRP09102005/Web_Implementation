@@ -110,3 +110,7 @@ $router->get('/api/vehicles',     [DashboardController::class, 'vehicles'],     
 $router->get('/api/penalties',    [DashboardController::class, 'penalties'],    Router::ROLE_AUTHENTICATED);
 $router->get('/api/results',      [DashboardController::class, 'results'],      Router::ROLE_AUTHENTICATED);
 $router->get('/api/manufacturer', [DashboardController::class, 'manufacturer'], Router::ROLE_AUTHENTICATED);
+$router->get('/api/stats',        [DashboardController::class, 'stats'],        Router::ROLE_AUTHENTICATED);
+$router->get('/api/inscriptions', [DashboardController::class, 'inscriptions'], Router::ROLE_AUTHENTICATED);
+$router->get('/api/admin/list',   [DashboardController::class, 'adminList'],    Router::ROLE_AUTHENTICATED);
+$router->post('/api/admin/crud',  [DashboardController::class, 'adminCrud'],    Router::ROLE_AUTHENTICATED);

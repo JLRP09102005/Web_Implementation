@@ -7,7 +7,7 @@ class Router{
     public const ROLE_PUBLIC = 'readonly-public';
     public const ROLE_ADMIN = 'software-administrator';
     public const ROLE_ADMIN_DB = 'administratorDB';
-    public const ROLE_COMISSIONER = 'comissioner-boss';
+    public const ROLE_COMMISSIONER = 'commissioner-boss';
     public const ROLE_RACE_DIRECTOR = 'race-director';
     public const ROLE_DATA_ANALYST = 'data-analyst';
     public const ROLE_MANUFACTURER_REP = 'manufacturer-representative';

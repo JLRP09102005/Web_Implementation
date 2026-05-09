@@ -79,7 +79,7 @@ class DashboardController {
                 $vehicles = $this->vehicleModel->getAllAnalyst($userId);
                 $penalties = $this->penaltyModel->getAllAnalyst($userId);
             }
-            elseif ($role === 'comissioner-boss')
+            elseif ($role === 'commissioner-boss')
             {
                 $penalties = $this->penaltyModel->getAllCommissioner($userId);
             }
@@ -138,7 +138,7 @@ class DashboardController {
 
             if(in_array($role, ['software-administrator', 'administratorDB'])) { $rows = $this->raceModel->getAllAdmin($userId); }
             elseif($role === 'data-analyst') { $rows = $this->raceModel->getAllAnalyst($userId); }
-            elseif($role === 'comissioner-boss') { $rows = $this->raceModel->getAllComissioner($userId); }
+            elseif($role === 'commissioner-boss') { $rows = $this->raceModel->getAllCommissioner($userId); }
             elseif($role === 'race-director') { $rows = $this->raceModel->getAllRaceDirector($userId); }
             elseif($role === 'mechanical-boss') { $rows = $this->raceModel->getAllMechanical($userId); }
             elseif($role === 'team-manager') { $rows = $this->raceModel->getAllTeamManager($userId); }
@@ -189,7 +189,7 @@ class DashboardController {
 
             if(in_array($role, ['software-administrator', 'administratorDB'])) { $rows = $this->penaltyModel->getAllAdmin($userId); }
             elseif($role === 'data-analyst') { $rows = $this->penaltyModel->getAllAnalyst($userId); }
-            elseif($role === 'comissioner-boss') { $rows = $this->penaltyModel->getAllCommissioner($userId); }
+            elseif($role === 'commissioner-boss') { $rows = $this->penaltyModel->getAllCommissioner($userId); }
             elseif($role === 'race-director') { $rows = $this->penaltyModel->getAllRaceDirector($userId); }
             else { $rows = []; }
 
@@ -213,7 +213,7 @@ class DashboardController {
 
             if(in_array($role, ['software-administrator', 'administratorDB'])) { $rows = $this->resultModel->getAllAdmin($userId); }
             elseif($role === 'data-analyst') { $rows = $this->resultModel->getAllAnalyst($userId); }
-            elseif($role == 'comissioner-boss') { $rows = $this->resultModel->getAllCommissioner($userId); }
+            elseif($role == 'commissioner-boss') { $rows = $this->resultModel->getAllCommissioner($userId); }
             elseif($role === 'race-director') { $rows = $this->resultModel->getAllRaceDirector($userId); }
             elseif($role === 'team-manager') { $rows = $this->resultModel->getMyTeamManager($userId); }
             elseif($role === 'pilot') { $rows = $this->resultModel->getMyPilot($userId); }

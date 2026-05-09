@@ -19,7 +19,7 @@ class RaceModel extends BaseModel{
         return $this->call('sp_analyst_all_races', [$userId]);
     }
 
-    public function getAllComissioner(int $userId): array
+    public function getAllCommissioner(int $userId): array
     {
         return $this->call('sp_commissioner_all_races', [$userId]);
     }

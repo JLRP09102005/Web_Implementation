@@ -318,13 +318,13 @@ async function loadManufacturer() {
 
 // ── Administración ────────────────────────────────────────────
 const entityConfig = {
-    pilots:        { label: 'Pilotos',       cols: ['pilot_name', 'pilot_age', 'pilot_category_name'], keys: ['pilot_name', 'pilot_age', 'pilot_category_name'], idKey: 'id_pilot' },
+    pilots:        { label: 'Pilotos',       cols: ['pilot_name', 'pilot_age', 'pilot_category_name'], keys: ['pilot_name', 'pilot_age', 'id_pilot_category'], idKey: 'id_pilot' },
     teams:         { label: 'Equipos',       cols: ['team_name','manufacturer_name','mechanics_num'], keys: ['team_name','mechanics_num','manufacturer_name'], idKey: 'id_team' },
     vehicles:      { label: 'Vehículos',     cols: ['model','specifications_url'],                 keys: ['model','specifications_url'],                 idKey: 'id_vehicle' },
     races:         { label: 'Carreras',      cols: ['event_name','circuit_name','event_date','event_duration'], keys: ['event_name','event_date','event_duration','id_circuit'], idKey: 'id_race' },
     circuits:      { label: 'Circuitos',     cols: ['circuit_name','country','length_km','direction'], keys: ['circuit_name','country','length_km','direction'], idKey: 'id_circuit' },
     manufacturers: { label: 'Fabricantes',   cols: ['manufacturer_name','manufacturer_country'],   keys: ['manufacturer_name','manufacturer_country'],   idKey: 'id_manufacturer' },
-    penalties:     { label: 'Penalizaciones',cols: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'],idKey: 'id_penalty' },
+    penalties:     { label: 'Penalizaciones',cols: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to'], idKey: 'id_penalty' },
     results:       { label: 'Resultados',    cols: ['position','final_time','team_name','model','event_name'], keys: ['position','final_time','penalty_time','base_points_team','base_points_pilot','penalty_points_team','penalty_points_pilot','id_vehicle','id_race','id_team'], idKey: 'id_result' },
 };
 
@@ -587,10 +587,10 @@ function formatDate(d) {
 function colLabel(key) {
     const map = {
         pilot_category_name: 'Categoría',
-        pilot_name: 'Nombre', pilot_age: 'Edad', id_pilot_category: 'ID Categoría', category_name: 'Categoría',
+        pilot_name: 'Piloto', pilot_age: 'Edad', id_pilot_category: 'ID Categoría', category_name: 'Categoría',
         team_name: 'Equipo', mechanics_num: 'Mecánicos', id_manufacturer: 'ID Fabricante', manufacturer_name: 'Fabricante',
         manufacturer_country: 'País', model: 'Modelo', specifications_url: 'Especificaciones',
-        event_name: 'Nombre', event_date: 'Fecha', event_duration: 'Duración', id_circuit: 'ID Circuito',
+        event_name: 'Carrera', event_date: 'Fecha', event_duration: 'Duración', id_circuit: 'ID Circuito',
         circuit_name: 'Circuito', country: 'País', length_km: 'Longitud (km)', direction: 'Dirección',
         username: 'Usuario', email: 'Email', password_hash: 'Contraseña', team_id: 'ID Equipo',
         penalty_type: 'Tipo', reason: 'Motivo', penalty_value: 'Valor', penalty_applies_to: 'Aplica a',

@@ -400,7 +400,7 @@ class DashboardController {
                 'teams'         => ['sp_UpdateTeamData',         ['id_team','team_name','mechanic_num','id_manufacturer']],
                 'vehicles'      => ['sp_UpdateVehicleData',      ['id_vehicle','model','specifications_url']],
                 'races'         => ['sp_UpdateRaceData',         ['id_race','event_name','event_date','event_duration','id_circuit']],
-                'circuits'      => ['sp_UpdateCircuitData',           ['id_circuit','circuit_name','country','length_km','direction']],
+                'circuits'      => ['sp_UpdateCircuitData',      ['id_circuit','circuit_name','country','length_km','direction']],
                 'manufacturers' => ['sp_UpdateManufacturerData', ['id_manufacturer','manufacturer_name','manufacturer_country']],
             ],
             'delete' => [

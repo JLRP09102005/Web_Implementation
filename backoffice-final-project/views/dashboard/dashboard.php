@@ -163,6 +163,14 @@ $navItems = [
                 <div class="card-header">
                     <h3><i data-lucide="flag" width="15" height="15" aria-hidden="true"></i> Calendario</h3>
                 </div>
+                <div class="table-filters">
+                    <input type="search" id="raceSearch" class="filter-input" placeholder="Buscar carrera o circuito…">
+                    <select id="raceStatusFilter" class="filter-select">
+                        <option value="all">Todas</option>
+                        <option value="upcoming">Próximas</option>
+                        <option value="past">Pasadas</option>
+                    </select>
+                </div>
                 <div class="table-wrap">
                     <table>
                         <thead><tr>
@@ -187,6 +195,12 @@ $navItems = [
             <div class="card">
                 <div class="card-header">
                     <h3><i data-lucide="user" width="15" height="15" aria-hidden="true"></i> Listado</h3>
+                </div>
+                <div class="table-filters">
+                    <input type="search" id="pilotSearch" class="filter-input" placeholder="Buscar piloto…">
+                    <select id="pilotCategoryFilter" class="filter-select">
+                        <option value="all">Todas las categorías</option>
+                    </select>
                 </div>
                 <div class="table-wrap">
                     <table>
@@ -213,6 +227,12 @@ $navItems = [
                 <div class="card-header">
                     <h3><i data-lucide="users" width="15" height="15" aria-hidden="true"></i> Listado</h3>
                 </div>
+                <div class="table-filters">
+                    <input type="search" id="teamSearch" class="filter-input" placeholder="Buscar equipo…">
+                    <select id="teamManufacturerFilter" class="filter-select">
+                        <option value="all">Todos los fabricantes</option>
+                    </select>
+                </div>
                 <div class="table-wrap">
                     <table>
                         <thead><tr>
@@ -237,6 +257,9 @@ $navItems = [
             <div class="card">
                 <div class="card-header">
                     <h3><i data-lucide="car" width="15" height="15" aria-hidden="true"></i> Vehículos</h3>
+                </div>
+                <div class="table-filters">
+                    <input type="search" id="vehicleSearch" class="filter-input" placeholder="Buscar modelo…">
                 </div>
                 <div class="table-wrap">
                     <table>
@@ -263,6 +286,16 @@ $navItems = [
                 <div class="card-header">
                     <h3><i data-lucide="alert-triangle" width="15" height="15" aria-hidden="true"></i> Penalizaciones</h3>
                 </div>
+                <div class="table-filters">
+                    <input type="search" id="penaltySearch" class="filter-input" placeholder="Buscar motivo o equipo…">
+                    <select id="penaltyTypeFilter" class="filter-select">
+                        <option value="all">Todos los tipos</option>
+                        <option value="POINTS">POINTS</option>
+                        <option value="TIME">TIME</option>
+                        <option value="DSQ">DSQ</option>
+                        <option value="DNF">DNF</option>
+                    </select>
+                </div>
                 <div class="table-wrap">
                     <table>
                         <thead><tr>
@@ -287,6 +320,12 @@ $navItems = [
             <div class="card">
                 <div class="card-header">
                     <h3><i data-lucide="trophy" width="15" height="15" aria-hidden="true"></i> Tabla de resultados</h3>
+                </div>
+                <div class="table-filters">
+                    <input type="search" id="resultSearch" class="filter-input" placeholder="Buscar equipo…">
+                    <select id="resultRaceFilter" class="filter-select">
+                        <option value="all">Todas las carreras</option>
+                    </select>
                 </div>
                 <div class="table-wrap">
                     <table>
@@ -414,6 +453,7 @@ $navItems = [
             <div class="card mt-6">
                 <div class="card-header">
                     <h3 id="adminTableTitle"><i data-lucide="database" width="15" height="15" aria-hidden="true"></i> Datos</h3>
+                    <input type="search" id="adminSearch" class="filter-input" placeholder="Buscar en tabla…" style="margin-left:auto;width:220px">
                     <button class="btn-add" id="btnAdminAdd" aria-label="Añadir registro">
                         <i data-lucide="plus" width="14" height="14" aria-hidden="true"></i>
                         Añadir

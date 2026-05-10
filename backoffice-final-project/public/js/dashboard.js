@@ -1,52 +1,55 @@
 'use strict';
-
 (function () {
 
-// ── Estado ───────────────────────────────────────────────────
-const WEC      = window.WEC || { userId: 0, role: '', visible: [] };
-const loaded   = new Set();
-let   adminEntity = 'pilots';
-let   adminRows   = [];
+// ── Estado ───────────────────────────────────────────────────────────────────
+const WEC = window.WEC || { userId: 0, role: '', visible: [] };
+const loaded = new Set();
+let adminEntity    = 'pilots';
+let adminRows      = [];
+let currentSection = 'panel';
 
-// ── Init ─────────────────────────────────────────────────────
+// Listas maestras para filtros
+let _pilots  = [];
+let _teams   = [];
+let _races   = [];
+let _penalties = [];
+let _results = [];
+let _vehicles = [];
+let _inscriptions = [];
+
+// ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) lucide.createIcons();
-
     initNav();
     initSidebar();
     initLogout();
-
-    // Cargar panel al inicio
     loadSection('panel');
-
-    // Admin tabs
+    loaded.add('panel');
     if (WEC.visible.includes('administracion')) {
         initAdminTabs();
         initAdminModal();
     }
 });
 
-// ── Navegación ───────────────────────────────────────────────
+// ── Navegación ───────────────────────────────────────────────────────────────
 function initNav() {
     document.querySelectorAll('.nav-item').forEach(btn => {
         btn.addEventListener('click', () => {
-            const id = btn.dataset.section;
-            showSection(id);
+            showSection(btn.dataset.section);
             closeSidebar();
         });
     });
 }
 
-function showSection(id) {
+// Solo activa el DOM visualmente, sin disparar carga de datos
+function activateSection(id) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(b => {
         b.classList.toggle('active', b.dataset.section === id);
         b.setAttribute('aria-current', b.dataset.section === id ? 'page' : 'false');
     });
-
     const sec = document.getElementById('sec-' + id);
     if (sec) sec.classList.add('active');
-
     const labels = {
         panel: 'Panel', carreras: 'Carreras', pilotos: 'Pilotos',
         equipos: 'Equipos', vehiculos: 'Vehículos', penalizaciones: 'Penalizaciones',
@@ -55,240 +58,404 @@ function showSection(id) {
     };
     const title = document.getElementById('topbarTitle');
     if (title) title.textContent = labels[id] || id;
+}
 
+function showSection(id) {
+    currentSection = id;
+    activateSection(id);
     if (!loaded.has(id)) {
         loadSection(id);
         loaded.add(id);
     }
 }
 
-// ── Carga de datos por sección ────────────────────────────────
+/** Fuerza recarga de una sección aunque ya esté en loaded (tras CRUD) */
+function reloadSection(id) {
+    activateSection(id);
+    loadSection(id);
+}
+
+// ── Carga de datos por sección ───────────────────────────────────────────────
 function loadSection(id) {
     switch (id) {
-        case 'panel':          loadOverview();      break;
-        case 'carreras':       loadTable('/api/races',       'racesBody',        renderRaceRow);         break;
-        case 'pilotos':        loadTable('/api/pilots',      'pilotsBody',       renderPilotRow);        break;
-        case 'equipos':        loadTable('/api/teams',       'teamsBody',        renderTeamRow);         break;
-        case 'vehiculos':      loadTable('/api/vehicles',    'vehiclesBody',     renderVehicleRow);      break;
-        case 'penalizaciones': loadTable('/api/penalties',   'penaltiesBody',    renderPenaltyRow);      break;
-        case 'resultados':     loadTable('/api/results',     'resultsBody',      renderResultRow);       break;
-        case 'inscripciones':  loadTable('/api/inscriptions','inscriptionsBody', renderInscriptionRow);  break;
-        case 'estadisticas':   loadStats();          break;
-        case 'fabricante':     loadManufacturer();   break;
+        case 'panel':          loadOverview();   break;
+        case 'carreras':       loadRaces();      break;
+        case 'pilotos':        loadPilots();     break;
+        case 'equipos':        loadTeams();      break;
+        case 'vehiculos':      loadVehicles();   break;
+        case 'penalizaciones': loadPenalties();  break;
+        case 'resultados':     loadResults();    break;
+        case 'inscripciones':  loadInscriptions(); break;
+        case 'estadisticas':   loadStats();      break;
+        case 'fabricante':     loadManufacturer(); break;
         case 'administracion': loadAdminEntity(adminEntity); break;
     }
 }
 
-// ── Overview / Panel ─────────────────────────────────────────
+// ── Loader genérico de tablas (sin filtros) ──────────────────────────────────
+async function loadTable(endpoint, tbodyId, renderFn) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return [];
+    try {
+        const rows = await apiFetch(endpoint);
+        const list = Array.isArray(rows) ? rows : [];
+        if (!list.length) {
+            tbody.innerHTML = `<tr><td colspan="99" class="empty-state-cell">Sin datos disponibles</td></tr>`;
+            return [];
+        }
+        tbody.innerHTML = list.map(renderFn).join('');
+        if (window.lucide) lucide.createIcons();
+        return list;
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="99" class="empty-state-cell error-cell">Error al cargar datos</td></tr>`;
+        console.error(endpoint, e);
+        return [];
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECCIONES CON FILTROS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── PANEL ────────────────────────────────────────────────────────────────────
 async function loadOverview() {
     try {
         const data = await apiFetch('/api/overview');
         if (data.error) return;
-
         const kpis = [
-            { label: 'Carreras',       value: data.total_races,     cls: 'kpi-accent' },
-            { label: 'Pilotos',        value: data.total_pilots,    cls: '' },
-            { label: 'Equipos',        value: data.total_teams,     cls: '' },
-            { label: 'Vehículos',      value: data.total_vehicles,  cls: '' },
-            { label: 'Penalizaciones', value: data.total_penalties, cls: 'kpi-warning' },
+            { label: 'Carreras',       value: data.total_races,    cls: 'kpi-accent'  },
+            { label: 'Pilotos',        value: data.total_pilots,   cls: ''            },
+            { label: 'Equipos',        value: data.total_teams,    cls: ''            },
+            { label: 'Vehículos',      value: data.total_vehicles, cls: ''            },
+            { label: 'Penalizaciones', value: data.total_penalties,cls: 'kpi-warning' },
         ].filter(k => k.value !== undefined && k.value !== null && k.value !== '');
-
         const grid = document.getElementById('kpiGrid');
         if (grid) {
-            grid.innerHTML = kpis.map(k => `
-                <div class="kpi-card">
-                    <span class="kpi-label">${k.label}</span>
-                    <span class="kpi-value ${k.cls}">${k.value}</span>
-                </div>`).join('');
+            grid.innerHTML = kpis.map(k =>
+                `<div class="kpi-card"><span class="kpi-label">${k.label}</span><span class="kpi-value ${k.cls}">${k.value}</span></div>`
+            ).join('');
         }
-
         const races = Array.isArray(data.races) ? data.races : [];
-        const now = new Date();
-
-        const upcomingRaces = races
-            .filter(r => {
-                const rawDate = r.event_date ?? r.date ?? r.eventdate;
-                if (!rawDate) return false;
-                const d = new Date(rawDate);
-                return !isNaN(d.getTime()) && d >= now;
-            })
-            .sort((a, b) => {
-                const da = new Date(a.event_date ?? a.date ?? a.eventdate);
-                const db = new Date(b.event_date ?? b.date ?? b.eventdate);
-                return da - db;
-            })
+        const now   = new Date();
+        const upcoming = races
+            .filter(r => { const d = new Date(r.event_date ?? r.date ?? r.eventdate); return !isNaN(d) && d > now; })
+            .sort((a,b) => new Date(a.event_date ?? a.date ?? a.eventdate) - new Date(b.event_date ?? b.date ?? b.eventdate))
             .slice(0, 8);
-
         const tbody = document.getElementById('overviewRacesBody');
         if (tbody) {
-            tbody.innerHTML = upcomingRaces.length
-                ? upcomingRaces.map(r => renderRaceRow(r)).join('')
-                : '<tr><td colspan="5" class="empty-state-cell">No hay próximas carreras</td></tr>';
+            tbody.innerHTML = upcoming.length
+                ? upcoming.map(r => renderRaceRow(r)).join('')
+                : `<tr><td colspan="5" class="empty-state-cell">No hay próximas carreras</td></tr>`;
         }
-    } catch (e) {
-        console.error('overview error', e);
-    }
-}
-
-// ── Loader genérico de tablas ─────────────────────────────────
-async function loadTable(endpoint, tbodyId, renderFn) {
-    const tbody = document.getElementById(tbodyId);
-    if (!tbody) return;
-
-    try {
-        const rows = await apiFetch(endpoint);
-        if (!Array.isArray(rows) || rows.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="99" class="empty-state-cell">Sin datos disponibles</td></tr>`;
-            return;
-        }
-        tbody.innerHTML = rows.map(renderFn).join('');
         if (window.lucide) lucide.createIcons();
-    } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="99" class="empty-state-cell error-cell">Error al cargar datos</td></tr>`;
-        console.error(endpoint, e);
-    }
+    } catch (e) { console.error('overview error', e); }
 }
 
-// ── Row renderers ─────────────────────────────────────────────
+// ── CARRERAS ─────────────────────────────────────────────────────────────────
+async function loadRaces() {
+    _races = await loadTable('/api/races', 'racesBody', renderRaceRow);
+    initRaceFilters();
+}
+
 function renderRaceRow(r) {
     return `<tr>
-        <td>${esc(r.event_name ?? r.race_name ?? '—')}</td>
-        <td>${esc(r.circuit_name ?? '—')}</td>
-        <td>${esc(r.country ?? '—')}</td>
-        <td>${formatDate(r.event_date ?? r.date)}</td>
-        <td>${esc(r.event_duration ?? r.duration ?? '—')}</td>
+        <td>${esc(r.event_name ?? r.eventname ?? r.race_name ?? '')}</td>
+        <td>${esc(r.circuit_name ?? r.circuitname ?? '')}</td>
+        <td>${esc(r.country ?? '')}</td>
+        <td>${formatDate(r.event_date ?? r.eventdate ?? r.date ?? '')}</td>
+        <td>${esc(r.event_duration ?? r.eventduration ?? r.duration ?? '')}</td>
     </tr>`;
+}
+
+function initRaceFilters() {
+    const searchEl = document.getElementById('raceSearch');
+    const filterEl = document.getElementById('raceStatusFilter');
+    if (!searchEl && !filterEl) return;
+    searchEl?.addEventListener('input', applyRaceFilters);
+    filterEl?.addEventListener('change', applyRaceFilters);
+}
+
+function applyRaceFilters() {
+    const q      = document.getElementById('raceSearch')?.value.toLowerCase() ?? '';
+    const status = document.getElementById('raceStatusFilter')?.value ?? 'all';
+    const now    = new Date();
+    const filtered = _races.filter(r => {
+        const name = (r.event_name ?? r.eventname ?? '').toLowerCase();
+        const circuit = (r.circuit_name ?? r.circuitname ?? '').toLowerCase();
+        const matchText = !q || name.includes(q) || circuit.includes(q);
+        const d = new Date(r.event_date ?? r.eventdate ?? r.date ?? '');
+        const matchStatus = status === 'all'
+            || (status === 'upcoming' && d > now)
+            || (status === 'past'     && d <= now);
+        return matchText && matchStatus;
+    });
+    const tbody = document.getElementById('racesBody');
+    if (tbody) {
+        tbody.innerHTML = filtered.length
+            ? filtered.map(renderRaceRow).join('')
+            : `<tr><td colspan="5" class="empty-state-cell">Sin resultados</td></tr>`;
+    }
+}
+
+// ── PILOTOS ──────────────────────────────────────────────────────────────────
+async function loadPilots() {
+    _pilots = await loadTable('/api/pilots', 'pilotsBody', renderPilotRow);
+    initPilotFilters();
 }
 
 function renderPilotRow(r) {
     return `<tr>
-        <td>${esc(r.pilot_name ?? r.name ?? '—')}</td>
-        <td>${esc(r.pilot_age ?? r.age ?? '—')}</td>
-        <td>${esc(r.pilot_category_name ?? r.category_name ?? r.pilot_category ?? r.category ?? '—')}</td>
+        <td>${esc(r.pilot_name ?? r.pilotname ?? r.name ?? '')}</td>
+        <td>${esc(r.pilot_age  ?? r.pilotage  ?? r.age  ?? '')}</td>
+        <td>${esc(r.pilot_category_name ?? r.pilotcategoryname ?? r.category_name ?? r.category ?? '')}</td>
     </tr>`;
+}
+
+function initPilotFilters() {
+    const searchEl = document.getElementById('pilotSearch');
+    const catEl    = document.getElementById('pilotCategoryFilter');
+    if (!searchEl && !catEl) return;
+    // Llenar select de categorías dinámicamente
+    if (catEl) {
+        const cats = [...new Set(_pilots.map(p => p.pilot_category_name ?? p.pilotcategoryname ?? p.category_name ?? p.category).filter(Boolean))].sort();
+        catEl.innerHTML = `<option value="all">Todas las categorías</option>`
+            + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    }
+    searchEl?.addEventListener('input',  applyPilotFilters);
+    catEl?.addEventListener('change', applyPilotFilters);
+}
+
+function applyPilotFilters() {
+    const q   = document.getElementById('pilotSearch')?.value.toLowerCase() ?? '';
+    const cat = document.getElementById('pilotCategoryFilter')?.value ?? 'all';
+    const filtered = _pilots.filter(p => {
+        const name = (p.pilot_name ?? p.pilotname ?? p.name ?? '').toLowerCase();
+        const pcat = p.pilot_category_name ?? p.pilotcategoryname ?? p.category_name ?? p.category ?? '';
+        return (!q || name.includes(q)) && (cat === 'all' || pcat === cat);
+    });
+    const tbody = document.getElementById('pilotsBody');
+    if (tbody) {
+        tbody.innerHTML = filtered.length
+            ? filtered.map(renderPilotRow).join('')
+            : `<tr><td colspan="3" class="empty-state-cell">Sin resultados</td></tr>`;
+    }
+}
+
+// ── EQUIPOS ──────────────────────────────────────────────────────────────────
+async function loadTeams() {
+    _teams = await loadTable('/api/teams', 'teamsBody', renderTeamRow);
+    initTeamFilters();
 }
 
 function renderTeamRow(r) {
     return `<tr>
-        <td>${esc(r.team_name ?? r.name ?? '—')}</td>
-        <td>${esc(r.manufacturer_name ?? r.manufacturer ?? '—')}</td>
-        <td>${esc(r.mechanics_num ?? r.mechanics ?? '—')}</td>
+        <td>${esc(r.team_name ?? r.teamname ?? r.name ?? '')}</td>
+        <td>${esc(r.manufacturer_name ?? r.manufacturername ?? r.manufacturer ?? '')}</td>
+        <td>${esc(r.mechanics_num ?? r.mechanicsnum ?? r.mechanics ?? '')}</td>
     </tr>`;
+}
+
+function initTeamFilters() {
+    const searchEl = document.getElementById('teamSearch');
+    const mfrEl    = document.getElementById('teamManufacturerFilter');
+    if (!searchEl && !mfrEl) return;
+    if (mfrEl) {
+        const mfrs = [...new Set(_teams.map(t => t.manufacturer_name ?? t.manufacturername ?? t.manufacturer).filter(Boolean))].sort();
+        mfrEl.innerHTML = `<option value="all">Todos los fabricantes</option>`
+            + mfrs.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+    }
+    searchEl?.addEventListener('input',  applyTeamFilters);
+    mfrEl?.addEventListener('change', applyTeamFilters);
+}
+
+function applyTeamFilters() {
+    const q   = document.getElementById('teamSearch')?.value.toLowerCase() ?? '';
+    const mfr = document.getElementById('teamManufacturerFilter')?.value ?? 'all';
+    const filtered = _teams.filter(t => {
+        const name = (t.team_name ?? t.teamname ?? t.name ?? '').toLowerCase();
+        const tm   = t.manufacturer_name ?? t.manufacturername ?? t.manufacturer ?? '';
+        return (!q || name.includes(q)) && (mfr === 'all' || tm === mfr);
+    });
+    const tbody = document.getElementById('teamsBody');
+    if (tbody) {
+        tbody.innerHTML = filtered.length
+            ? filtered.map(renderTeamRow).join('')
+            : `<tr><td colspan="3" class="empty-state-cell">Sin resultados</td></tr>`;
+    }
+}
+
+// ── VEHÍCULOS ─────────────────────────────────────────────────────────────────
+async function loadVehicles() {
+    _vehicles = await loadTable('/api/vehicles', 'vehiclesBody', renderVehicleRow);
+    initVehicleFilters();
 }
 
 function renderVehicleRow(r) {
-    const specs = r.specifications_url
-        ? `<a href="${esc(r.specifications_url)}" target="_blank" rel="noopener" class="link-specs">Ver specs</a>`
+    const specs = r.specifications_url ?? r.specificationsurl
+        ? `<a href="${esc(r.specifications_url ?? r.specificationsurl)}" target="_blank" rel="noopener" class="link-specs">Ver specs</a>`
         : '—';
-    return `<tr>
-        <td>${esc(r.model ?? '—')}</td>
-        <td>${specs}</td>
-    </tr>`;
+    return `<tr><td>${esc(r.model ?? '')}</td><td>${specs}</td></tr>`;
+}
+
+function initVehicleFilters() {
+    const searchEl = document.getElementById('vehicleSearch');
+    searchEl?.addEventListener('input', () => {
+        const q = searchEl.value.toLowerCase();
+        const filtered = _vehicles.filter(v => (v.model ?? '').toLowerCase().includes(q));
+        const tbody = document.getElementById('vehiclesBody');
+        if (tbody) {
+            tbody.innerHTML = filtered.length
+                ? filtered.map(renderVehicleRow).join('')
+                : `<tr><td colspan="2" class="empty-state-cell">Sin resultados</td></tr>`;
+        }
+    });
+}
+
+// ── PENALIZACIONES ───────────────────────────────────────────────────────────
+async function loadPenalties() {
+    _penalties = await loadTable('/api/penalties', 'penaltiesBody', renderPenaltyRow);
+    initPenaltyFilters();
 }
 
 function renderPenaltyRow(r) {
+    const type = r.penalty_type ?? r.penaltytype ?? '';
+    const typeClsMap = { POINTS: 'badge-yellow', TIME: 'badge-gray', DSQ: 'badge-red', DNF: 'badge-red' };
+    const typeCls = typeClsMap[type] ?? 'badge-gray';
+    const appliesTo = r.penalty_applies_to ?? r.penaltyappliesto ?? '';
     return `<tr>
-        <td><span class="badge badge-red">${esc(r.penalty_type ?? '—')}</span></td>
-        <td>${esc(r.reason ?? '—')}</td>
-        <td>${esc(r.penalty_value ?? '—')}</td>
-        <td>${esc(r.penalty_applies_to ?? '—')}</td>
-        <td>${esc(r.team_name ?? '—')}</td>
-        <td>${esc(r.penalty_applies_to === 'PILOT' ? (r.pilot_name ?? '—') : '—')}</td>
-        <td>${esc(r.event_name ?? '—')}</td>
+        <td><span class="badge ${typeCls}">${esc(type)}</span></td>
+        <td>${esc(r.reason ?? '')}</td>
+        <td>${esc(r.penalty_value ?? r.penaltyvalue ?? '')}</td>
+        <td>${esc(appliesTo)}</td>
+        <td>${esc(r.team_name  ?? r.teamname  ?? '')}</td>
+        <td>${appliesTo === 'PILOT' ? esc(r.pilot_name ?? r.pilotname ?? '') : '—'}</td>
+        <td>${esc(r.event_name ?? r.eventname ?? '')}</td>
     </tr>`;
 }
 
+function initPenaltyFilters() {
+    const typeEl   = document.getElementById('penaltyTypeFilter');
+    const searchEl = document.getElementById('penaltySearch');
+    if (!typeEl && !searchEl) return;
+    typeEl?.addEventListener('change', applyPenaltyFilters);
+    searchEl?.addEventListener('input', applyPenaltyFilters);
+}
+
+function applyPenaltyFilters() {
+    const type    = document.getElementById('penaltyTypeFilter')?.value ?? 'all';
+    const q       = document.getElementById('penaltySearch')?.value.toLowerCase() ?? '';
+    const filtered = _penalties.filter(p => {
+        const ptype  = p.penalty_type ?? p.penaltytype ?? '';
+        const reason = (p.reason ?? '').toLowerCase();
+        const team   = (p.team_name ?? p.teamname ?? '').toLowerCase();
+        return (type === 'all' || ptype === type)
+            && (!q || reason.includes(q) || team.includes(q));
+    });
+    const tbody = document.getElementById('penaltiesBody');
+    if (tbody) {
+        tbody.innerHTML = filtered.length
+            ? filtered.map(renderPenaltyRow).join('')
+            : `<tr><td colspan="7" class="empty-state-cell">Sin resultados</td></tr>`;
+    }
+}
+
+// ── RESULTADOS ───────────────────────────────────────────────────────────────
+async function loadResults() {
+    _results = await loadTable('/api/results', 'resultsBody', renderResultRow);
+    initResultFilters();
+}
+
 function renderResultRow(r) {
-    const pos = r.position ?? r.pos ?? '—';
+    const pos    = r.position ?? r.pos ?? '';
     const posCls = Number(pos) === 1 ? 'kpi-accent' : '';
     return `<tr>
-        <td><strong class="${posCls}">${esc(pos)}</strong></td>
-        <td>${esc(r.event_name ?? r.eventname ?? r.race_name ?? '—')}</td>
-        <td>${esc(r.team_name ?? r.teamname ?? r.id_team ?? '—')}</td>
-        <td>${esc(r.model ?? r.vehicle_model ?? '—')}</td>
-        <td>${esc(r.final_time ?? r.finaltime ?? '—')}</td>
-        <td>${esc(r.penalty_time ?? r.penaltytime ?? '—')}</td>
-        <td>${esc(r.base_points_team ?? r.basepointsteam ?? '—')}</td>
-        <td>${esc(r.base_points_pilot ?? r.basepointspilot ?? '—')}</td>
+        <td><strong class="${posCls}">${esc(String(pos))}</strong></td>
+        <td>${esc(r.event_name    ?? r.eventname    ?? r.race_name ?? '')}</td>
+        <td>${esc(r.team_name     ?? r.teamname     ?? r.id_team   ?? '')}</td>
+        <td>${esc(r.model         ?? r.vehiclemodel ?? '')}</td>
+        <td>${esc(r.final_time    ?? r.finaltime    ?? '')}</td>
+        <td>${esc(r.penalty_time  ?? r.penaltytime  ?? '')}</td>
+        <td>${esc(r.base_points_team  ?? r.basepointsteam  ?? '')}</td>
+        <td>${esc(r.base_points_pilot ?? r.basepointspilot ?? '')}</td>
     </tr>`;
+}
+
+function initResultFilters() {
+    const searchEl = document.getElementById('resultSearch');
+    const raceEl   = document.getElementById('resultRaceFilter');
+    if (!searchEl && !raceEl) return;
+    if (raceEl) {
+        const races = [...new Set(_results.map(r => r.event_name ?? r.eventname ?? r.race_name).filter(Boolean))].sort();
+        raceEl.innerHTML = `<option value="all">Todas las carreras</option>`
+            + races.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
+    }
+    searchEl?.addEventListener('input',  applyResultFilters);
+    raceEl?.addEventListener('change', applyResultFilters);
+}
+
+function applyResultFilters() {
+    const q    = document.getElementById('resultSearch')?.value.toLowerCase() ?? '';
+    const race = document.getElementById('resultRaceFilter')?.value ?? 'all';
+    const filtered = _results.filter(r => {
+        const team  = (r.team_name ?? r.teamname ?? '').toLowerCase();
+        const rname = r.event_name ?? r.eventname ?? r.race_name ?? '';
+        return (!q || team.includes(q)) && (race === 'all' || rname === race);
+    });
+    const tbody = document.getElementById('resultsBody');
+    if (tbody) {
+        tbody.innerHTML = filtered.length
+            ? filtered.map(renderResultRow).join('')
+            : `<tr><td colspan="8" class="empty-state-cell">Sin resultados</td></tr>`;
+    }
+}
+
+// ── INSCRIPCIONES ─────────────────────────────────────────────────────────────
+async function loadInscriptions() {
+    _inscriptions = await loadTable('/api/inscriptions', 'inscriptionsBody', renderInscriptionRow);
 }
 
 function renderInscriptionRow(r) {
     return `<tr>
-        <td>${esc(r.team_name ?? r.team ?? '—')}</td>
-        <td>${esc(r.event_name ?? r.race ?? '—')}</td>
-        <td>${esc(r.model ?? r.vehicle ?? '—')}</td>
+        <td>${esc(r.team_name  ?? r.teamname  ?? r.team  ?? '')}</td>
+        <td>${esc(r.event_name ?? r.eventname ?? r.race  ?? '')}</td>
+        <td>${esc(r.model      ?? r.vehicle   ?? '')}</td>
     </tr>`;
 }
 
-// ── Estadísticas ─────────────────────────────────────────────
+// ── ESTADÍSTICAS ─────────────────────────────────────────────────────────────
 async function loadStats() {
     try {
         const data = await apiFetch('/api/stats');
         if (data.error) return;
-
-        const teamPoints  = data.team_points  || {};
-        const penTypes    = data.penalty_types || {};
-
-        renderBarChart('chartTeamPoints', Object.keys(teamPoints), Object.values(teamPoints), 'Puntos');
-        renderDoughnutChart('chartPenaltyTypes', Object.keys(penTypes), Object.values(penTypes));
-    } catch (e) {
-        console.error('stats error', e);
-    }
+        const teamPoints = data.team_points ?? data.teampoints ?? {};
+        const penTypes   = data.penalty_types ?? data.penaltytypes ?? {};
+        renderBarChart('chartTeamPoints',   Object.keys(teamPoints), Object.values(teamPoints), 'Puntos');
+        renderDoughnutChart('chartPenaltyTypes', Object.keys(penTypes),   Object.values(penTypes));
+    } catch (e) { console.error('stats error', e); }
 }
 
 function renderBarChart(canvasId, labels, values, label) {
     const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
+    if (!ctx || !window.Chart) return;
     new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels,
-            datasets: [{
-                label,
-                data: values,
-                backgroundColor: 'rgba(225,6,0,0.7)',
-                borderColor: '#e10600',
-                borderWidth: 1,
-                borderRadius: 4,
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { ticks: { color: '#7a7a85' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                y: { ticks: { color: '#7a7a85' }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true }
-            }
-        }
+        data: { labels, datasets: [{ label, data: values, backgroundColor: 'rgba(225,6,0,0.7)', borderColor: '#e10600', borderWidth: 1, borderRadius: 4 }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#7a7a85' }, grid: { color: 'rgba(255,255,255,0.05)' } }, y: { ticks: { color: '#7a7a85' }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true } } }
     });
 }
 
 function renderDoughnutChart(canvasId, labels, values) {
     const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
+    if (!ctx || !window.Chart) return;
     const colors = ['#e10600','#ff6b6b','#ff9a5c','#ffd166','#06d6a0','#118ab2','#7b2d8b','#c77dff'];
     new Chart(ctx, {
         type: 'doughnut',
-        data: {
-            labels,
-            datasets: [{
-                data: values,
-                backgroundColor: colors.slice(0, labels.length),
-                borderColor: '#18181c',
-                borderWidth: 2,
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: 'bottom', labels: { color: '#7a7a85', padding: 16 } }
-            }
-        }
+        data: { labels, datasets: [{ data: values, backgroundColor: colors.slice(0, labels.length), borderColor: '#18181c', borderWidth: 2 }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#7a7a85', padding: 16 } } } }
     });
 }
 
-// ── Mi Fabricante ─────────────────────────────────────────────
+// ── MI FABRICANTE ─────────────────────────────────────────────────────────────
 async function loadManufacturer() {
     try {
         const data = await apiFetch('/api/manufacturer');
@@ -297,44 +464,40 @@ async function loadManufacturer() {
             if (data.error) {
                 info.innerHTML = `<p class="text-muted">Sin datos de fabricante</p>`;
             } else {
-                info.innerHTML = `
-                    <div class="mfr-info">
-                        <div class="mfr-name">${esc(data.manufacturer_name ?? data.name ?? '—')}</div>
-                        <div class="mfr-country text-muted">${esc(data.manufacturer_country ?? data.country ?? '—')}</div>
-                    </div>`;
+                info.innerHTML = `<div class="mfr-info">
+                    <div class="mfr-name">${esc(data.manufacturer_name ?? data.manufacturername ?? data.name ?? '')}</div>
+                    <div class="mfr-country text-muted">${esc(data.manufacturer_country ?? data.manufacturercountry ?? data.country ?? '')}</div>
+                </div>`;
             }
         }
-        const teams = data.teams || [];
+        const teams = data.teams ?? [];
         const tbody = document.getElementById('manufacturerTeamsBody');
         if (tbody) {
             tbody.innerHTML = teams.length
-                ? teams.map(t => `<tr><td>${esc(t.team_name??'—')}</td><td>${esc(t.mechanics_num??'—')}</td></tr>`).join('')
-                : '<tr><td colspan="2" class="empty-state-cell">Sin equipos asociados</td></tr>';
+                ? teams.map(t => `<tr><td>${esc(t.team_name ?? t.teamname ?? '')}</td><td>${esc(t.mechanics_num ?? t.mechanicsnum ?? '')}</td></tr>`).join('')
+                : `<tr><td colspan="2" class="empty-state-cell">Sin equipos asociados</td></tr>`;
         }
-    } catch (e) {
-        console.error('manufacturer error', e);
-    }
+    } catch (e) { console.error('manufacturer error', e); }
 }
 
-// ── Administración ────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// ADMINISTRACIÓN
+// ══════════════════════════════════════════════════════════════════════════════
 const entityConfig = {
-    pilots:        { label: 'Pilotos',       cols: ['pilot_name', 'pilot_age', 'pilot_category_name'], keys: ['pilot_name', 'pilot_age', 'id_pilot_category'], idKey: 'id_pilot' },
-    teams:         { label: 'Equipos',       cols: ['team_name','manufacturer_name','mechanics_num'], keys: ['team_name','mechanics_num','manufacturer_name'], idKey: 'id_team' },
-    vehicles:      { label: 'Vehículos',     cols: ['model','specifications_url'],                 keys: ['model','specifications_url'],                 idKey: 'id_vehicle' },
-    races:         { label: 'Carreras',      cols: ['event_name','circuit_name','event_date','event_duration'], keys: ['event_name','event_date','event_duration','id_circuit'], idKey: 'id_race' },
-    circuits:      { label: 'Circuitos',     cols: ['circuit_name','country','length_km','direction'], keys: ['circuit_name','country','length_km','direction'], idKey: 'id_circuit' },
-    manufacturers: { label: 'Fabricantes',   cols: ['manufacturer_name','manufacturer_country'],   keys: ['manufacturer_name','manufacturer_country'],   idKey: 'id_manufacturer' },
-    penalties:     { label: 'Penalizaciones',cols: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to'], idKey: 'id_penalty' },
-    results:       { label: 'Resultados',    cols: ['position','final_time','team_name','model','event_name'], keys: ['position','final_time','penalty_time','base_points_team','base_points_pilot','penalty_points_team','penalty_points_pilot','id_vehicle','id_race','id_team'], idKey: 'id_result' },
+    pilots:        { label: 'Pilotos',        cols: ['pilot_name','pilot_age','pilot_category_name'],                       keys: ['pilot_name','pilot_age','id_pilot_category'],                                                                          idKey: 'id_pilot' },
+    teams:         { label: 'Equipos',         cols: ['team_name','manufacturer_name','mechanics_num'],                      keys: ['team_name','mechanics_num','manufacturer_name'],                                                                        idKey: 'id_team' },
+    vehicles:      { label: 'Vehículos',       cols: ['model','specifications_url'],                                         keys: ['model','specifications_url'],                                                                                           idKey: 'id_vehicle' },
+    races:         { label: 'Carreras',        cols: ['event_name','circuit_name','event_date','event_duration'],             keys: ['event_name','event_date','event_duration','id_circuit'],                                                               idKey: 'id_race' },
+    circuits:      { label: 'Circuitos',       cols: ['circuit_name','country','length_km','direction'],                     keys: ['circuit_name','country','length_km','direction'],                                                                       idKey: 'id_circuit' },
+    manufacturers: { label: 'Fabricantes',     cols: ['manufacturer_name','manufacturer_country'],                           keys: ['manufacturer_name','manufacturer_country'],                                                                             idKey: 'id_manufacturer' },
+    penalties:     { label: 'Penalizaciones',  cols: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to'],                           idKey: 'id_penalty' },
+    results:       { label: 'Resultados',      cols: ['position','final_time','team_name','model','event_name'],              keys: ['position','final_time','penalty_time','base_points_team','base_points_pilot','penalty_points_team','penalty_points_pilot','id_vehicle','id_race','id_team'], idKey: 'id_result' },
 };
 
 function initAdminTabs() {
     document.querySelectorAll('.admin-tab').forEach(tab => {
         tab.addEventListener('click', () => {
-            document.querySelectorAll('.admin-tab').forEach(t => {
-                t.classList.remove('active');
-                t.setAttribute('aria-selected', 'false');
-            });
+            document.querySelectorAll('.admin-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
             tab.classList.add('active');
             tab.setAttribute('aria-selected', 'true');
             adminEntity = tab.dataset.entity;
@@ -347,129 +510,133 @@ function initAdminTabs() {
 async function loadAdminEntity(entity) {
     const cfg   = entityConfig[entity];
     if (!cfg) return;
-
     const thead = document.getElementById('adminTableHead');
     const tbody = document.getElementById('adminTableBody');
     const title = document.getElementById('adminTableTitle');
     if (!thead || !tbody) return;
-
     if (title) title.innerHTML = `<i data-lucide="database" width="15" height="15" aria-hidden="true"></i> ${cfg.label}`;
+
+    // Filtro de búsqueda admin
+    const adminSearchEl = document.getElementById('adminSearch');
+    if (adminSearchEl) { adminSearchEl.value = ''; adminSearchEl.oninput = () => applyAdminFilter(cfg); }
 
     thead.innerHTML = `<tr>${cfg.cols.map(c => `<th>${colLabel(c)}</th>`).join('')}<th style="width:80px">Acciones</th></tr>`;
     tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 1}" class="empty-state-cell">Cargando...</td></tr>`;
-
     if (window.lucide) lucide.createIcons();
-
     try {
-        const rows = await apiFetch(`/api/admin/list?entity=${entity}`);
-        adminRows = Array.isArray(rows) ? rows : [];
-
-        if (!adminRows.length) {
-            tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 1}" class="empty-state-cell">Sin registros</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = adminRows.map((row, idx) => `
-            <tr>
-                ${cfg.cols.map(c => `<td>${esc(row[c] ?? '—')}</td>`).join('')}
-                <td>
-                    <div class="action-btns">
-                        <button class="btn-action btn-edit" data-idx="${idx}" aria-label="Editar">
-                            <i data-lucide="pencil" width="13" height="13" aria-hidden="true"></i>
-                        </button>
-                        <button class="btn-action btn-delete" data-idx="${idx}" aria-label="Eliminar">
-                            <i data-lucide="trash-2" width="13" height="13" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>`).join('');
-
-        if (window.lucide) lucide.createIcons();
-
-        tbody.querySelectorAll('.btn-edit').forEach(btn =>
-            btn.addEventListener('click', () => openEditModal(entity, adminRows[+btn.dataset.idx]))
-        );
-        tbody.querySelectorAll('.btn-delete').forEach(btn =>
-            btn.addEventListener('click', () => confirmDelete(entity, adminRows[+btn.dataset.idx]))
-        );
+        const rows  = await apiFetch(`/api/admin/list?entity=${entity}`);
+        adminRows   = Array.isArray(rows) ? rows : [];
+        renderAdminRows(entity, adminRows);
     } catch (e) {
         tbody.innerHTML = `<tr><td colspan="${entityConfig[entity].cols.length + 1}" class="empty-state-cell error-cell">Error al cargar</td></tr>`;
     }
 }
 
+function renderAdminRows(entity, rows) {
+    const cfg   = entityConfig[entity];
+    const tbody = document.getElementById('adminTableBody');
+    if (!tbody) return;
+    if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="${cfg.cols.length + 1}" class="empty-state-cell">Sin registros</td></tr>`;
+        return;
+    }
+    // FIX 1: usamos el idKey del registro como data-id, no el índice del array.
+    // Así editar/eliminar funciona correctamente aunque haya un filtro activo.
+    tbody.innerHTML = rows.map(row => `<tr>
+        ${cfg.cols.map(c => `<td>${esc(row[c] ?? '')}</td>`).join('')}
+        <td><div class="action-btns">
+            <button class="btn-action btn-edit"   data-id="${esc(String(row[cfg.idKey] ?? ''))}" aria-label="Editar">  <i data-lucide="pencil"  width="13" height="13" aria-hidden="true"></i></button>
+            <button class="btn-action btn-delete" data-id="${esc(String(row[cfg.idKey] ?? ''))}" aria-label="Eliminar"><i data-lucide="trash-2" width="13" height="13" aria-hidden="true"></i></button>
+        </div></td>
+    </tr>`).join('');
+    if (window.lucide) lucide.createIcons();
+    tbody.querySelectorAll('.btn-edit').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const row = adminRows.find(r => String(r[cfg.idKey]) === btn.dataset.id);
+            if (row) openEditModal(entity, row);
+        });
+    });
+    tbody.querySelectorAll('.btn-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const row = adminRows.find(r => String(r[cfg.idKey]) === btn.dataset.id);
+            if (row) confirmDelete(entity, row);
+        });
+    });
+}
+
+function applyAdminFilter(cfg) {
+    const q = document.getElementById('adminSearch')?.value.toLowerCase() ?? '';
+    if (!q) { renderAdminRows(adminEntity, adminRows); return; }
+    const filtered = adminRows.filter(row =>
+        cfg.cols.some(c => String(row[c] ?? '').toLowerCase().includes(q))
+    );
+    renderAdminRows(adminEntity, filtered);
+}
+
 function initAdminModal() {
-    const btnAdd  = document.getElementById('btnAdminAdd');
-    const overlay = document.getElementById('crudModalOverlay');
+    const btnAdd    = document.getElementById('btnAdminAdd');
+    const overlay   = document.getElementById('crudModalOverlay');
     const btnClose  = document.getElementById('crudModalClose');
     const btnCancel = document.getElementById('crudModalCancel');
-    const form    = document.getElementById('crudModalForm');
-
-    if (btnAdd) btnAdd.addEventListener('click', () => openInsertModal(adminEntity));
-    if (btnClose)  btnClose.addEventListener('click',  closeModal);
+    const form      = document.getElementById('crudModalForm');
+    if (btnAdd)    btnAdd.addEventListener('click', () => openInsertModal(adminEntity));
+    if (btnClose)  btnClose.addEventListener('click', closeModal);
     if (btnCancel) btnCancel.addEventListener('click', closeModal);
-    if (overlay) overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
-
-    if (form) {
-        form.addEventListener('submit', async e => {
-            e.preventDefault();
-            const action = form.dataset.action;
-            const entity = form.dataset.entity;
-            const data   = {};
-            new FormData(form).forEach((v, k) => data[k] = v);
-
-            try {
-                const res = await apiFetch('/api/admin/crud', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action, entity, data })
-                });
-
-                if (res.success) {
-                    closeModal();
-                    showToast(action === 'insert' ? 'Registro añadido' : 'Registro actualizado', 'success');
-                    adminRows = [];
-                    loadAdminEntity(entity);
-                } else {
-                    showToast(res.message || 'Error al guardar', 'error');
-                }
-            } catch (err) {
-                showToast('Error de conexión', 'error');
+    if (overlay)   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+    if (form) form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const action = form.dataset.action;
+        const entity = form.dataset.entity;
+        const data   = {};
+        new FormData(form).forEach((v, k) => data[k] = v);
+        // Validación pilot_name
+        if (entity === 'pilots' && data.pilot_name && !data.pilot_name.trim().includes(' ')) {
+            showToast('El nombre del piloto debe incluir nombre y apellido', 'error');
+            return;
+        }
+        try {
+            const res = await apiFetch('/api/admin/crud', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, entity, data }) });
+            if (res.success) {
+                closeModal();
+                showToast(action === 'insert' ? 'Registro añadido' : 'Registro actualizado', 'success');
+                activateSection(currentSection); // ← AÑADIR ESTO
+                loadAdminEntity(entity);
+            } else {
+                showToast(res.message || 'Error al guardar', 'error');
             }
-        });
-    }
+        } catch (err) { showToast('Error de conexión', 'error'); }
+    });
 }
 
 function openInsertModal(entity) {
-    const cfg = entityConfig[entity];
+    const cfg  = entityConfig[entity];
     if (!cfg) return;
     const form = document.getElementById('crudModalForm');
     form.dataset.action = 'insert';
     form.dataset.entity = entity;
     document.getElementById('crudModalTitle').textContent = `Añadir ${cfg.label}`;
-    document.getElementById('crudModalFields').innerHTML = cfg.keys.map(k =>
-        `<div class="field-group">
+    document.getElementById('crudModalFields').innerHTML = cfg.keys.map(k => `
+        <div class="field-group">
             <label class="field-label" for="f_${k}">${colLabel(k)}</label>
             <input class="field-input" id="f_${k}" name="${k}" type="${inputType(k)}" placeholder="${colLabel(k)}" required>
-        </div>`
-    ).join('');
+        </div>`).join('');
     openModal();
 }
 
 function openEditModal(entity, row) {
-    const cfg = entityConfig[entity];
+    const cfg  = entityConfig[entity];
     if (!cfg) return;
     const form = document.getElementById('crudModalForm');
-    form.dataset.action  = 'update';
-    form.dataset.entity  = entity;
+    form.dataset.action = 'update';
+    form.dataset.entity = entity;
     document.getElementById('crudModalTitle').textContent = `Editar ${cfg.label}`;
     document.getElementById('crudModalFields').innerHTML =
         `<input type="hidden" name="${cfg.idKey}" value="${esc(row[cfg.idKey] ?? '')}">` +
-        cfg.keys.map(k =>
-            `<div class="field-group">
-                <label class="field-label" for="f_${k}">${colLabel(k)}</label>
-                <input class="field-input" id="f_${k}" name="${k}" type="${inputType(k)}" value="${esc(row[k] ?? '')}" required>
-            </div>`
-        ).join('');
+        cfg.keys.map(k => `
+        <div class="field-group">
+            <label class="field-label" for="f_${k}">${colLabel(k)}</label>
+            <input class="field-input" id="f_${k}" name="${k}" type="${inputType(k)}" value="${esc(row[k] ?? '')}" required>
+        </div>`).join('');
     openModal();
 }
 
@@ -477,23 +644,17 @@ async function confirmDelete(entity, row) {
     const cfg = entityConfig[entity];
     if (!cfg) return;
     if (!confirm(`¿Eliminar este registro de ${cfg.label}?`)) return;
-
     try {
-        const res = await apiFetch('/api/admin/crud', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'delete', entity, data: { [cfg.idKey]: row[cfg.idKey] } })
-        });
+        const res = await apiFetch('/api/admin/crud', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', entity, data: { [cfg.idKey]: row[cfg.idKey] } }) });
         if (res.success) {
-            showToast('Registro eliminado', 'success');
-            adminRows = [];
+            closeModal();
+            showToast(action === 'insert' ? 'Registro añadido' : 'Registro actualizado', 'success');
+            activateSection(currentSection); // ← AÑADIR ESTO
             loadAdminEntity(entity);
         } else {
             showToast(res.message || 'Error al eliminar', 'error');
         }
-    } catch (e) {
-        showToast('Error de conexión', 'error');
-    }
+    } catch (e) { showToast('Error de conexión', 'error'); }
 }
 
 function openModal() {
@@ -501,7 +662,7 @@ function openModal() {
     overlay.hidden = false;
     setTimeout(() => overlay.classList.add('visible'), 10);
     if (window.lucide) lucide.createIcons();
-    overlay.querySelector('.modal').querySelector('input')?.focus();
+    overlay.querySelector('.modal')?.querySelector('input')?.focus();
 }
 
 function closeModal() {
@@ -510,46 +671,33 @@ function closeModal() {
     setTimeout(() => { overlay.hidden = true; }, 200);
 }
 
-// ── Logout ───────────────────────────────────────────────────
+// ── Logout ────────────────────────────────────────────────────────────────────
 function initLogout() {
     const btn = document.getElementById('logoutBtn');
     if (!btn) return;
     btn.addEventListener('click', async () => {
         try {
-            const res = await fetch('/logout', { method: 'POST' });
+            const res  = await fetch('/logout', { method: 'POST' });
             const data = await res.json();
             if (data.success) window.location.href = data.redirect || '/login';
-        } catch {
-            window.location.href = '/login';
-        }
+        } catch { window.location.href = '/login'; }
     });
 }
 
-// ── Sidebar móvil ─────────────────────────────────────────────
+// ── Sidebar móvil ─────────────────────────────────────────────────────────────
 function initSidebar() {
-    const sidebar  = document.getElementById('sidebar');
-    const overlay  = document.getElementById('overlay');
-    const btnMenu  = document.getElementById('btnMenu');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    const btnMenu = document.getElementById('btnMenu');
     const btnClose = document.getElementById('sidebarClose');
-
     if (btnMenu)  btnMenu.addEventListener('click',  openSidebar);
     if (btnClose) btnClose.addEventListener('click', closeSidebar);
     if (overlay)  overlay.addEventListener('click',  closeSidebar);
 }
+function openSidebar()  { document.getElementById('sidebar')?.classList.add('open'); document.getElementById('overlay')?.classList.add('visible'); document.getElementById('btnMenu')?.setAttribute('aria-expanded','true'); }
+function closeSidebar() { document.getElementById('sidebar')?.classList.remove('open'); document.getElementById('overlay')?.classList.remove('visible'); document.getElementById('btnMenu')?.setAttribute('aria-expanded','false'); }
 
-function openSidebar() {
-    document.getElementById('sidebar')?.classList.add('open');
-    document.getElementById('overlay')?.classList.add('visible');
-    document.getElementById('btnMenu')?.setAttribute('aria-expanded', 'true');
-}
-
-function closeSidebar() {
-    document.getElementById('sidebar')?.classList.remove('open');
-    document.getElementById('overlay')?.classList.remove('visible');
-    document.getElementById('btnMenu')?.setAttribute('aria-expanded', 'false');
-}
-
-// ── Toast ─────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
 function showToast(msg, type = 'info') {
     const container = document.getElementById('toastContainer');
     if (!container) return;
@@ -558,58 +706,56 @@ function showToast(msg, type = 'info') {
     toast.textContent = msg;
     container.appendChild(toast);
     requestAnimationFrame(() => toast.classList.add('show'));
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-    }, 3500);
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3500);
 }
 
-// ── API fetch ─────────────────────────────────────────────────
-async function apiFetch(url, options = {}) {
+// ── API fetch ─────────────────────────────────────────────────────────────────
+async function apiFetch(url, options) {
     const res = await fetch(url, options);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
 
-// ── Helpers ───────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function esc(str) {
     if (str === null || str === undefined) return '';
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function formatDate(d) {
-    if (!d) return '—';
-    try {
-        return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(d));
-    } catch { return d; }
+    if (!d) return '';
+    try { return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(d)); }
+    catch { return d; }
 }
 
 function colLabel(key) {
     const map = {
-        pilot_category_name: 'Categoría',
-        pilot_name: 'Piloto', pilot_age: 'Edad', id_pilot_category: 'ID Categoría', category_name: 'Categoría',
-        team_name: 'Equipo', mechanics_num: 'Mecánicos', id_manufacturer: 'ID Fabricante', manufacturer_name: 'Fabricante',
+        pilot_category_name: 'Categoría', pilot_name: 'Piloto', pilot_age: 'Edad',
+        id_pilot_category: 'ID Categoría', category_name: 'Categoría',
+        team_name: 'Equipo', mechanics_num: 'Mecánicos', manufacturer_name: 'Fabricante',
         manufacturer_country: 'País', model: 'Modelo', specifications_url: 'Especificaciones',
-        event_name: 'Carrera', event_date: 'Fecha', event_duration: 'Duración', id_circuit: 'ID Circuito',
-        circuit_name: 'Circuito', country: 'País', length_km: 'Longitud (km)', direction: 'Dirección',
+        event_name: 'Carrera', event_date: 'Fecha', event_duration: 'Duración',
+        id_circuit: 'ID Circuito', circuit_name: 'Circuito', country: 'País',
+        length_km: 'Longitud (km)', direction: 'Dirección',
         username: 'Usuario', email: 'Email', password_hash: 'Contraseña', team_id: 'ID Equipo',
         penalty_type: 'Tipo', reason: 'Motivo', penalty_value: 'Valor', penalty_applies_to: 'Aplica a',
         position: 'Posición', final_time: 'Tiempo', penalty_time: 'T. Penalización',
         base_points_team: 'Pts Equipo', base_points_pilot: 'Pts Piloto',
-        penalty_points_team: 'Pts Pen. Equipo', penalty_points_pilot: 'Pts Pen. Piloto', id_vehicle: 'ID Vehículo',
-        circuit_id: 'ID Circuito', id_race: 'ID Carrera', id_team: 'ID Equipo', id_pilot: 'ID Piloto',
-        id_manufacturer: 'ID Fabricante', id_penalty: 'ID Penalización', id_result: 'ID Resultado',
+        penalty_points_team: 'Pts Pen. Equipo', penalty_points_pilot: 'Pts Pen. Piloto',
+        id_vehicle: 'ID Vehículo', circuit_id: 'ID Circuito', id_race: 'ID Carrera',
+        id_team: 'ID Equipo', id_pilot: 'ID Piloto', id_manufacturer: 'ID Fabricante',
+        id_penalty: 'ID Penalización', id_result: 'ID Resultado',
     };
     return map[key] || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function inputType(key) {
-    if (key.includes('date'))  return 'datetime-local';
-    if (key.includes('age') || key.includes('num') || key.includes('id_') || key === 'position') return 'number';
-    if (key.includes('url'))   return 'url';
-    if (key === 'email')       return 'email';
-    if (key === 'password_hash') return 'password';
-    if (key.includes('km') || key.includes('value')) return 'number';
+    if (key.includes('date'))              return 'datetime-local';
+    if (key.includes('age') || key.includes('num') || key === 'position' || key.includes('id') || key.includes('points') || key.includes('value')) return 'number';
+    if (key.includes('url'))               return 'url';
+    if (key === 'email')                   return 'email';
+    if (key === 'password_hash')           return 'password';
+    if (key.includes('km'))               return 'number';
     return 'text';
 }
 

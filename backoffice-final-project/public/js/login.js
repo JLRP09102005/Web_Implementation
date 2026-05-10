@@ -1,5 +1,11 @@
 'use strict';
 
+const alertBox = document.getElementById('loginError');
+const alertMsg = document.getElementById('loginErrorMsg');
+
+if (alertBox) alertBox.hidden = true;
+if (alertMsg) alertMsg.textContent = '';
+
 (function () {
 
     const form       = document.getElementById('loginForm');

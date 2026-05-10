@@ -25,6 +25,10 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { -webkit-font-smoothing: antialiased; }
 
+[hidden] {
+    display: none !important;
+}
+
 body {
     min-height: 100dvh;
     background: var(--bg);

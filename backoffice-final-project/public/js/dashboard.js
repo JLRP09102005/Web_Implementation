@@ -1,4 +1,22 @@
 'use strict';
+
+function setCookie(name, value, days) {
+    const d = new Date();
+    d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+    document.cookie = name + '=' + encodeURIComponent(value) + ';path=/;expires=' + d.toUTCString() + ';SameSite=Lax';
+}
+
+function getCookie(name) {
+    const cookies = document.cookie.split(';');
+    for (let c of cookies) {
+        c = c.trim();
+        if (c.startsWith(name + '=')) {
+            return decodeURIComponent(c.substring(name.length + 1));
+        }
+    }
+    return null;
+}
+
 (function () {
 
 // ── Estado ───────────────────────────────────────────────────────────────────
@@ -23,12 +41,22 @@ document.addEventListener('DOMContentLoaded', () => {
     initNav();
     initSidebar();
     initLogout();
-    loadSection('panel');
-    loaded.add('panel');
+
     if (WEC.visible.includes('administracion')) {
         initAdminTabs();
         initAdminModal();
     }
+
+    // Sin timeout, DOMContentLoaded ya garantiza que el DOM está listo
+    let savedSection = getCookie('wec_section');
+    if (!savedSection || !WEC.visible.includes(savedSection)) {
+        savedSection = 'panel';
+    }
+    // Primero activa visualmente, luego carga datos
+    activateSection(savedSection);
+    currentSection = savedSection;
+    loadSection(savedSection);
+    loaded.add(savedSection);
 });
 
 // ── Navegación ───────────────────────────────────────────────────────────────
@@ -67,6 +95,7 @@ function showSection(id) {
         loadSection(id);
         loaded.add(id);
     }
+    setCookie('wec_section', id, 7);  // añadir esta línea
 }
 
 /** Fuerza recarga de una sección aunque ya esté en loaded (tras CRUD) */
@@ -492,17 +521,32 @@ const entityConfig = {
     manufacturers: { label: 'Fabricantes',     cols: ['manufacturer_name','manufacturer_country'],                           keys: ['manufacturer_name','manufacturer_country'],                                                                            idKey: 'id_manufacturer' },
     penalties:     { label: 'Penalizaciones',  cols: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to'],                            idKey: 'id_penalty' },
     results:       { label: 'Resultados',      cols: ['position','final_time','team_name','model','event_name'],             keys: ['position','final_time','penalty_time','base_points_team','base_points_pilot','penalty_points_team','penalty_points_pilot','id_vehicle','id_race','id_team'], idKey: 'id_result' },
-    users:         { label: 'Usuarios',        cols: ['username', 'email', 'role', 'team_id'],                               keys: ['username', 'email', 'password_hash', 'team_id', 'role'],                                                               idKey: 'id_user' },
+    users:         { label: 'Usuarios',        cols: ['username', 'email', 'role', 'team_id', 'password_hash'],              keys: ['username', 'email', 'password_hash', 'team_id', 'role'],                                                               idKey: 'id_user' },
 };
 
 function initAdminTabs() {
+    // Restaurar tab guardado
+    const savedTab = getCookie('wec_admin_tab');
+    if (savedTab && entityConfig[savedTab]) {
+        adminEntity = savedTab;
+        document.querySelectorAll('.admin-tab').forEach(t => {
+            const isActive = t.dataset.entity === savedTab;
+            t.classList.toggle('active', isActive);
+            t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+    }
+
     document.querySelectorAll('.admin-tab').forEach(tab => {
         tab.addEventListener('click', () => {
-            document.querySelectorAll('.admin-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+            document.querySelectorAll('.admin-tab').forEach(t => {
+                t.classList.remove('active');
+                t.setAttribute('aria-selected', 'false');
+            });
             tab.classList.add('active');
             tab.setAttribute('aria-selected', 'true');
             adminEntity = tab.dataset.entity;
-            adminRows   = [];
+            adminRows = [];
+            setCookie('wec_admin_tab', adminEntity, 7); // ← guardar
             loadAdminEntity(adminEntity);
         });
     });
@@ -552,6 +596,8 @@ function revealHashPrompt(userId) {
     })
     .catch(() => alert('Error de conexión'));
 }
+
+window.revealHashPrompt = revealHashPrompt; 
 
 function renderAdminRows(entity, rows) {
     const cfg   = entityConfig[entity];
@@ -630,8 +676,15 @@ function initAdminModal() {
             if (res.success) {
                 closeModal();
                 showToast(action === 'insert' ? 'Registro añadido' : 'Registro actualizado', 'success');
-                activateSection(currentSection); // ← AÑADIR ESTO
                 loadAdminEntity(entity);
+                const entityToSection = {
+                    pilots: 'pilotos', teams: 'equipos', vehicles: 'vehiculos',
+                    races: 'carreras', penalties: 'penalizaciones', results: 'resultados',
+                };
+                const relatedSection = entityToSection[entity];
+                if (relatedSection && loaded.has(relatedSection)) {
+                    loadSection(relatedSection); // solo datos, sin tocar el DOM de navegación
+                }
             } else {
                 showToast(res.message || 'Error al guardar', 'error');
             }
@@ -703,9 +756,16 @@ async function confirmDelete(entity, row) {
     try {
         const res = await apiFetch('/api/admin/crud', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         if (res.success) {
-            closeModal();
             showToast('Registro eliminado', 'success');
             loadAdminEntity(entity);
+            const entityToSection = {
+                pilots: 'pilotos', teams: 'equipos', vehicles: 'vehiculos',
+                races: 'carreras', penalties: 'penalizaciones', results: 'resultados',
+            };
+            const relatedSection = entityToSection[entity];
+            if (relatedSection && loaded.has(relatedSection)) {
+                loadSection(relatedSection); // solo datos, sin tocar el DOM de navegación
+            }
         } else {
             showToast(res.message || 'Error al eliminar', 'error');
         }

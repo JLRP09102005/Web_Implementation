@@ -540,7 +540,7 @@ public function adminCrud(array $urlParams): void
         $stmt->closeCursor();
         $state = (int)($pdo->query("SELECT @spstate AS s")->fetchColumn());
 
-        if ($state !== 0) {
+        if ($state !== 1) {
             http_Response_code(500);
             $this->json(['error' => 500, 'message' => "SP returned state $state"]);
         }

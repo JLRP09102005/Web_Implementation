@@ -34,18 +34,18 @@ class DashboardController {
         $user = $this->session();
         $adminId = (int)$user['id'];
 
-        if (!$this->isAdmin($user['role'])) { $this->json(['error' => 401, 'message' => 'No authorized']); }
+        if (!$this->isAdmin($user['role'])) { http_Response_code(401); $this->json(['error' => 401, 'message' => 'No authorized']); }
 
         $pdo = Container::getInstance()->make('db.admin');
         $stmt = $pdo->prepare("SELECT password_hash FROM users WHERE id_user = ?");
         $stmt->execute([$adminId]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-        if (!isset($row)) { $this->json(['error' => 403, 'message' => 'Administrador no encontrado']); }
+        if (!isset($row)) { http_Response_code(403); $this->json(['error' => 403, 'message' => 'Administrador no encontrado']); }
 
         $adminHash = $row['password_hash'];
 
-        if (!password_verify($password, $adminHash)) { $this->json(['error' => 403, 'message' => 'Contraseña de administrador incorrecta']); }
+        if (!password_verify($password, $adminHash)) { http_Response_code(403); $this->json(['error' => 403, 'message' => 'Contraseña de administrador incorrecta']); }
     }
 
     private function requireAuth(): void
@@ -78,13 +78,13 @@ class DashboardController {
         $this->requireAuth();
         $user = $this->session();
 
-        if (!$this->isAdmin($user['role'])) { $this->json(['error' => 403, 'message' => 'Fordidden']); }
+        if (!$this->isAdmin($user['role'])) { http_Response_code(403); $this->json(['error' => 403, 'message' => 'Fordidden']); }
 
         $body = json_decode(file_get_contents('php://input'), true);
         $targetUserId = (int)($body['target_user_id'] ?? 0);
         $adminPassword = $body['admin_password'] ?? '';
 
-        if (!$targetUserId || !$adminPassword) { $this->json(['error' => 400, 'message' => 'Missing parameters']); }
+        if (!$targetUserId || !$adminPassword) { http_Response_code(400); $this->json(['error' => 400, 'message' => 'Missing parameters']); }
 
         $this->verifyAdminPassword($adminPassword);
 
@@ -93,7 +93,7 @@ class DashboardController {
         $stmt->execute([$targetUserId]);
         $hash = $stmt->fetchColumn(\PDO::FETCH_ASSOC);
 
-        if (!isset($hash)) { $this->json(['error' => 404, 'message' => 'User not found']); }
+        if (!isset($hash)) { http_Response_code(404); $this->json(['error' => 404, 'message' => 'User not found']); }
 
         $this->json(['hash' => $hash]);
     }
@@ -153,6 +153,7 @@ class DashboardController {
                 'races'           => $races,
             ]);
         } catch (\Throwable $e) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
@@ -175,6 +176,7 @@ class DashboardController {
 
             $this->json($rows);
         } catch (\Throwable $e) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
@@ -199,6 +201,7 @@ class DashboardController {
 
             $this->json($rows);
         } catch (\Throwable $e) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
@@ -221,6 +224,7 @@ class DashboardController {
 
             $this->json($rows);
         } catch (\Throwable $e) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
@@ -244,6 +248,7 @@ class DashboardController {
 
             $this->json($rows);
         } catch (\Throwable $e) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
@@ -267,6 +272,7 @@ class DashboardController {
 
             $this->json($rows);
         } catch (\Throwable $e) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
@@ -291,6 +297,7 @@ class DashboardController {
 
             $this->json($rows);
         } catch (\Throwable $e) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
@@ -304,8 +311,10 @@ class DashboardController {
 
         try {
             $data = $this->manufacturerModel->getMyData($userId);
+            http_Response_code(404);
             $this->json($data ?: ['error' => 404, 'message' => 'No manufacturer data']);
         } catch (\Throwable $e) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
@@ -328,6 +337,7 @@ class DashboardController {
 
             $this->json($rows);
         } catch (\Throwable $e) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
@@ -343,6 +353,7 @@ class DashboardController {
 
         $allowed = ['software-administrator', 'administratorDB', 'data-analyst', 'race-director'];
         if (!in_array($role, $allowed)) {
+            http_Response_code(403);
             $this->json(['error' => 403, 'message' => 'Forbidden']);
         }
 
@@ -369,6 +380,7 @@ class DashboardController {
                 'penalty_types' => $penTypes,
             ]);
         } catch (\Throwable $e) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
@@ -383,6 +395,7 @@ class DashboardController {
         $userId = (int)$user['id'];
 
         if (!$this->isAdmin($role)) {
+            http_Response_code(403);
             $this->json(['error' => 403, 'message' => 'Forbidden']);
         }
 
@@ -402,12 +415,14 @@ class DashboardController {
         ];
 
         if (!isset($spMap[$entity])) {
+            http_Response_code(400);
             $this->json(['error' => 400, 'message' => "Unknown entity: $entity"]);
         }
 
         try {
             $this->json($this->callSP($spMap[$entity], $userId));
         } catch (\Throwable $e) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
@@ -419,6 +434,7 @@ public function adminCrud(array $urlParams): void
     $this->requireAuth();
     $user = $this->session();
     if (!$this->isAdmin($user['role'])) {
+        http_Response_code(403);
         $this->json(['error' => 403, 'message' => 'Forbidden']);
     }
 
@@ -428,6 +444,7 @@ public function adminCrud(array $urlParams): void
     $data   = $body['data']   ?? [];
 
     if (!$action || !$entity) {
+        http_Response_code(400);
         $this->json(['error' => 400, 'message' => 'action and entity required']);
     }
 
@@ -464,6 +481,7 @@ public function adminCrud(array $urlParams): void
     ];
 
     if (!isset($spMap[$action][$entity])) {
+        http_Response_code(400);
         $this->json(['error' => 400, 'message' => "Unknown action/entity: $action/$entity"]);
     }
 
@@ -473,6 +491,7 @@ public function adminCrud(array $urlParams): void
     if ($entity === 'users' && in_array($action, ['insert', 'update', 'delete'])) {
         $adminPass = $body['data']['admin_password'] ?? '';
         if ($adminPass === '') {
+            http_Response_code(400);
             $this->json(['error' => 400, 'message' => 'Se requiere tu contraseña de administrador']);
         }
         $this->verifyAdminPassword($adminPass);
@@ -484,6 +503,7 @@ public function adminCrud(array $urlParams): void
         if ($action === 'insert') {
             // En inserción la contraseña es obligatoria
             if (empty($data['password_hash'])) {
+                http_Response_code(400);
                 $this->json(['error' => 400, 'message' => 'La contraseña del usuario no puede estar vacía']);
             }
             $data['password_hash'] = password_hash($data['password_hash'], PASSWORD_BCRYPT);
@@ -501,6 +521,7 @@ public function adminCrud(array $urlParams): void
     $values = [];
     foreach ($params as $p) {
         if (!array_key_exists($p, $data)) {
+            http_Response_code(400);
             $this->json(['error' => 400, 'message' => "Missing field: $p"]);
         }
         $val = $data[$p];
@@ -520,11 +541,13 @@ public function adminCrud(array $urlParams): void
         $state = (int)($pdo->query("SELECT @spstate AS s")->fetchColumn());
 
         if ($state !== 0) {
+            http_Response_code(500);
             $this->json(['error' => 500, 'message' => "SP returned state $state"]);
         }
 
         $this->json(['success' => true]);
     } catch (\Throwable $e) {
+        http_Response_code(500);
         $this->json(['error' => 500, 'message' => $e->getMessage()]);
     }
 }

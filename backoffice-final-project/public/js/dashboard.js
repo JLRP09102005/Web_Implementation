@@ -484,14 +484,15 @@ async function loadManufacturer() {
 // ADMINISTRACIÓN
 // ══════════════════════════════════════════════════════════════════════════════
 const entityConfig = {
-    pilots:        { label: 'Pilotos',        cols: ['pilot_name','pilot_age','pilot_category_name'],                       keys: ['pilot_name','pilot_age','id_pilot_category'],                                                                          idKey: 'id_pilot' },
-    teams:         { label: 'Equipos',         cols: ['team_name','manufacturer_name','mechanics_num'],                      keys: ['team_name','mechanics_num','manufacturer_name'],                                                                        idKey: 'id_team' },
-    vehicles:      { label: 'Vehículos',       cols: ['model','specifications_url'],                                         keys: ['model','specifications_url'],                                                                                           idKey: 'id_vehicle' },
-    races:         { label: 'Carreras',        cols: ['event_name','circuit_name','event_date','event_duration'],             keys: ['event_name','event_date','event_duration','id_circuit'],                                                               idKey: 'id_race' },
-    circuits:      { label: 'Circuitos',       cols: ['circuit_name','country','length_km','direction'],                     keys: ['circuit_name','country','length_km','direction'],                                                                       idKey: 'id_circuit' },
-    manufacturers: { label: 'Fabricantes',     cols: ['manufacturer_name','manufacturer_country'],                           keys: ['manufacturer_name','manufacturer_country'],                                                                             idKey: 'id_manufacturer' },
-    penalties:     { label: 'Penalizaciones',  cols: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to'],                           idKey: 'id_penalty' },
-    results:       { label: 'Resultados',      cols: ['position','final_time','team_name','model','event_name'],              keys: ['position','final_time','penalty_time','base_points_team','base_points_pilot','penalty_points_team','penalty_points_pilot','id_vehicle','id_race','id_team'], idKey: 'id_result' },
+    pilots:        { label: 'Pilotos',         cols: ['pilot_name','pilot_age','pilot_category_name'],                       keys: ['pilot_name','pilot_age','id_pilot_category'],                                                                          idKey: 'id_pilot' },
+    teams:         { label: 'Equipos',         cols: ['team_name','manufacturer_name','mechanics_num'],                      keys: ['team_name','mechanics_num','manufacturer_name'],                                                                       idKey: 'id_team' },
+    vehicles:      { label: 'Vehículos',       cols: ['model','specifications_url'],                                         keys: ['model','specifications_url'],                                                                                          idKey: 'id_vehicle' },
+    races:         { label: 'Carreras',        cols: ['event_name','circuit_name','event_date','event_duration'],            keys: ['event_name','event_date','event_duration','id_circuit'],                                                               idKey: 'id_race' },
+    circuits:      { label: 'Circuitos',       cols: ['circuit_name','country','length_km','direction'],                     keys: ['circuit_name','country','length_km','direction'],                                                                      idKey: 'id_circuit' },
+    manufacturers: { label: 'Fabricantes',     cols: ['manufacturer_name','manufacturer_country'],                           keys: ['manufacturer_name','manufacturer_country'],                                                                            idKey: 'id_manufacturer' },
+    penalties:     { label: 'Penalizaciones',  cols: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to'],                            idKey: 'id_penalty' },
+    results:       { label: 'Resultados',      cols: ['position','final_time','team_name','model','event_name'],             keys: ['position','final_time','penalty_time','base_points_team','base_points_pilot','penalty_points_team','penalty_points_pilot','id_vehicle','id_race','id_team'], idKey: 'id_result' },
+    users:         { label: 'Usuarios',        cols: ['username', 'email', 'role', 'team_id'],                               keys: ['username', 'email', 'password_hash', 'team_id', 'role'],                                                               idKey: 'id_user' },
 };
 
 function initAdminTabs() {
@@ -532,6 +533,26 @@ async function loadAdminEntity(entity) {
     }
 }
 
+function revealHashPrompt(userId) {
+    const password = prompt("Ingresa tu contraseña de administrador para ver el hash:");
+    if (!password) return;
+    
+    fetch('/api/admin/reveal-hash', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ target_user_id: userId, admin_password: password })
+    })
+    .then(res => { if (!res.ok) throw new Error('Error'); return res.json(); })
+    .then(data => {
+        if (data.hash) {
+            document.getElementById(`hash-${userId}`).textContent = data.hash;
+        } else {
+            alert(data.message || 'Error al obtener el hash');
+        }
+    })
+    .catch(() => alert('Error de conexión'));
+}
+
 function renderAdminRows(entity, rows) {
     const cfg   = entityConfig[entity];
     const tbody = document.getElementById('adminTableBody');
@@ -543,7 +564,17 @@ function renderAdminRows(entity, rows) {
     // FIX 1: usamos el idKey del registro como data-id, no el índice del array.
     // Así editar/eliminar funciona correctamente aunque haya un filtro activo.
     tbody.innerHTML = rows.map(row => `<tr>
-        ${cfg.cols.map(c => `<td>${esc(row[c] ?? '')}</td>`).join('')}
+        ${cfg.cols.map(c => {
+            if (c === 'password_hash') {
+                return `<td>
+                    <span id="hash-${row[cfg.idKey]}">********</span>
+                    <button class="btn-action" onclick="revealHashPrompt(${row[cfg.idKey]})" title="Ver hash">
+                        <i data-lucide="eye" width="13" height="13"></i>
+                    </button>
+                </td>`;
+            }
+            return `<td>${esc(row[c] ?? '')}</td>`;
+        }).join('')}
         <td><div class="action-btns">
             <button class="btn-action btn-edit"   data-id="${esc(String(row[cfg.idKey] ?? ''))}" aria-label="Editar">  <i data-lucide="pencil"  width="13" height="13" aria-hidden="true"></i></button>
             <button class="btn-action btn-delete" data-id="${esc(String(row[cfg.idKey] ?? ''))}" aria-label="Eliminar"><i data-lucide="trash-2" width="13" height="13" aria-hidden="true"></i></button>
@@ -615,14 +646,9 @@ function openInsertModal(entity) {
     form.dataset.action = 'insert';
     form.dataset.entity = entity;
     document.getElementById('crudModalTitle').textContent = `Añadir ${cfg.label}`;
-    document.getElementById('crudModalFields').innerHTML = cfg.keys.map(k => `
-        <div class="field-group">
-            <label class="field-label" for="f_${k}">${colLabel(k)}</label>
-            <input class="field-input" id="f_${k}" name="${k}" type="${inputType(k)}" placeholder="${colLabel(k)}" required>
-        </div>`).join('');
+    document.getElementById('crudModalFields').innerHTML = buildModalFields(entity, cfg);
     openModal();
 }
-
 function openEditModal(entity, row) {
     const cfg  = entityConfig[entity];
     if (!cfg) return;
@@ -632,24 +658,53 @@ function openEditModal(entity, row) {
     document.getElementById('crudModalTitle').textContent = `Editar ${cfg.label}`;
     document.getElementById('crudModalFields').innerHTML =
         `<input type="hidden" name="${cfg.idKey}" value="${esc(row[cfg.idKey] ?? '')}">` +
-        cfg.keys.map(k => `
-        <div class="field-group">
-            <label class="field-label" for="f_${k}">${colLabel(k)}</label>
-            <input class="field-input" id="f_${k}" name="${k}" type="${inputType(k)}" value="${esc(row[k] ?? '')}" required>
-        </div>`).join('');
+        buildModalFields(entity, cfg, row);
     openModal();
+}
+function buildModalFields(entity, cfg, row = null) {
+    let html = '';
+    cfg.keys.forEach(k => {
+        const label = colLabel(k);
+        const type = inputType(k);
+        const value = row ? esc(row[k] ?? '') : '';
+        const placeholder = (k === 'role') ? 'Ej: team-manager, pilot' : label;
+        html += `
+        <div class="field-group">
+            <label class="field-label" for="f_${k}">${label}</label>
+            <input class="field-input" id="f_${k}" name="${k}" type="${type}" value="${value}" placeholder="${placeholder}" required>
+        </div>`;
+    });
+
+    if (entity === 'users') {
+        html += `
+        <div class="field-group">
+            <label class="field-label" for="f_admin_password">Tu contraseña de administrador</label>
+            <input class="field-input" id="f_admin_password" name="admin_password" type="password" placeholder="Requerida para guardar" required>
+        </div>`;
+    }
+
+    return html;
 }
 
 async function confirmDelete(entity, row) {
     const cfg = entityConfig[entity];
     if (!cfg) return;
+    
+    let adminPassword = null;
+    if (entity === 'users') {
+        adminPassword = prompt("Para eliminar el usuario, ingresa tu contraseña de administrador:");
+        if (!adminPassword) return;
+    }
+    
     if (!confirm(`¿Eliminar este registro de ${cfg.label}?`)) return;
+    
+    const body = { action: 'delete', entity, data: { [cfg.idKey]: row[cfg.idKey] } };
+    if (adminPassword) body.data.admin_password = adminPassword;
     try {
-        const res = await apiFetch('/api/admin/crud', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', entity, data: { [cfg.idKey]: row[cfg.idKey] } }) });
+        const res = await apiFetch('/api/admin/crud', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         if (res.success) {
             closeModal();
-            showToast(action === 'insert' ? 'Registro añadido' : 'Registro actualizado', 'success');
-            activateSection(currentSection); // ← AÑADIR ESTO
+            showToast('Registro eliminado', 'success');
             loadAdminEntity(entity);
         } else {
             showToast(res.message || 'Error al eliminar', 'error');
@@ -744,7 +799,7 @@ function colLabel(key) {
         penalty_points_team: 'Pts Pen. Equipo', penalty_points_pilot: 'Pts Pen. Piloto',
         id_vehicle: 'ID Vehículo', circuit_id: 'ID Circuito', id_race: 'ID Carrera',
         id_team: 'ID Equipo', id_pilot: 'ID Piloto', id_manufacturer: 'ID Fabricante',
-        id_penalty: 'ID Penalización', id_result: 'ID Resultado',
+        id_penalty: 'ID Penalización', id_result: 'ID Resultado', role: 'Rol', id_user: 'ID Usuario',
     };
     return map[key] || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }

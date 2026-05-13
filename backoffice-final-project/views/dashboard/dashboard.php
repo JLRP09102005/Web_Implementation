@@ -440,6 +440,7 @@ $navItems = [
                     'manufacturers' => 'Fabricantes',
                     'penalties'=> 'Penalizaciones',
                     'results' => 'Resultados',
+                    'users'   => 'Usuarios',
                 ] as $eid => $elabel): ?>
                 <button class="admin-tab<?= $eid === 'pilots' ? ' active' : '' ?>"
                     role="tab"

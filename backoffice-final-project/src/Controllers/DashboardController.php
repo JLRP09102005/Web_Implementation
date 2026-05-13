@@ -29,6 +29,21 @@ class DashboardController {
 
     // ── Helpers ──────────────────────────────────────────────
 
+    private function verifyAdminPassword(string $password): void
+    {
+        $user = $this->session();
+        $adminId = (int)$user['id'];
+
+        if (!$this->isAdmin($user['role'])) { $this->json(['error' => 401, 'message' => 'No authorized']); }
+
+        $pdo = Container::getInstance()->make('db.admin');
+        $stmt = $pdo->prepare("SELECT password_hash FROM users WHERE id_user = ?");
+        $stmt->execute([$adminId]);
+        $adminHash = $stmt->fetchColumn(\PDO::FETCH_ASSOC);
+
+        if (!$adminHash || !password_verify($password, $adminHash)) { $this->json(['error' => 403, 'message' => 'Admin password incorrect']); }
+    }
+
     private function requireAuth(): void
     {
         if (empty($_SESSION['user'])) {
@@ -46,11 +61,37 @@ class DashboardController {
         exit;
     }
 
-    private function session(): array { return $_SESSION['user']; }
+    private function session(): array { return $_SESSION['user'] ?? [] ; }
 
     private function isAdmin(string $role): bool
     {
         return in_array($role, ['software-administrator', 'administratorDB']);
+    }
+
+    // ── PUBLIC methods ────────────────────────────────────
+    public function revealHash(array $urlParams): void
+    {
+        $this->requireAuth();
+        $user = $this->session();
+
+        if (!$this->isAdmin($user['role'])) { $this->json(['error' => 403, 'message' => 'Fordidden']); }
+
+        $body = json_decode(file_get_contents('php://input'), true);
+        $targetUserId = (int)($body['target_user_id'] ?? 0);
+        $adminPassword = $body['admin_password'] ?? '';
+
+        if (!$targetUserId || !$adminPassword) { $this->json(['error' => 400, 'message' => 'Missing parameters']); }
+
+        $this->verifyAdminPassword($adminPassword);
+
+        $pdo = Container::getInstance()->make('db.admin');
+        $stmt = $pdo->prepare("SELECT password_hash FROM users WHERE id_user = ?");
+        $stmt->execute([$targetUserId]);
+        $hash = $stmt->fetchColumn(\PDO::FETCH_ASSOC);
+
+        if (!isset($hash)) { $this->json(['error' => 404, 'message' => 'User not found']); }
+
+        $this->json(['hash' => $hash]);
     }
 
     // ── GET /api/overview ────────────────────────────────────
@@ -353,6 +394,7 @@ class DashboardController {
             'inscriptions'  => 'sp_admin_all_inscriptions',
             'results'       => 'sp_admin_all_results',
             'penalties'     => 'sp_admin_all_penalties',
+            'users'         => 'sp_admin_all_users',
         ];
 
         if (!isset($spMap[$entity])) {
@@ -394,6 +436,7 @@ class DashboardController {
                 'circuits'      => ['sp_InsertCircuitData',      ['circuit_name','country','length_km','direction']],
                 'manufacturers' => ['sp_InsertManufacturerData', ['manufacturer_name','manufacturer_country']],
                 'penalties'     => ['sp_InsertPenaltyData',      ['penalty_type','reason','penalty_value','penalty_applies_to']],
+                'users'         => ['sp_InsertUserData',         ['username','email','password_hash','team_id','role']],
             ],
             'update' => [
                 'pilots'        => ['sp_UpdatePilotData',        ['id_pilot','pilot_name','pilot_age','id_pilot_category']],
@@ -402,6 +445,7 @@ class DashboardController {
                 'races'         => ['sp_UpdateRaceData',         ['id_race','event_name','event_date','event_duration','id_circuit']],
                 'circuits'      => ['sp_UpdateCircuitData',      ['id_circuit','circuit_name','country','length_km','direction']],
                 'manufacturers' => ['sp_UpdateManufacturerData', ['id_manufacturer','manufacturer_name','manufacturer_country']],
+                'users'         => ['sp_UpdateUserData',         ['id_user','username','email','password_hash','team_id','role']],
             ],
             'delete' => [
                 'pilots'        => ['sp_DeletePilotData',        ['id_pilot']],
@@ -411,6 +455,7 @@ class DashboardController {
                 'circuits'      => ['sp_DeleteCircuitData',      ['circuit_id']],
                 'manufacturers' => ['sp_DeleteManufacturerData', ['id_manufacturer']],
                 'penalties'     => ['sp_DeletePenaltyData',      ['id_penalty']],
+                'users'         => ['sp_DeleteUserData',         ['id_user']],
             ],
         ];
 
@@ -420,6 +465,13 @@ class DashboardController {
 
         [$sp, $params] = $spMap[$action][$entity];
 
+        if ($entity === 'users' && in_array($action, ['update','delete']))
+        {
+            $adminPass = $body['data']['admin_password'] ?? '';
+            $this->verifyAdminPassword($adminPass);
+            unset($body['data']['admin_password']);
+        }
+
         $values = [];
         foreach ($params as $p) {
             if (!array_key_exists($p, $data)) {
@@ -427,13 +479,14 @@ class DashboardController {
             }
             $val = $data[$p];
             // Si el campo es un ID o entero, forzar cast
-            if (str_starts_with($p, 'id_') || in_array($p, ['circuit_id','pilot_age','mechanic_num','length_km','position','penalty_value'])) {
-                $val = $val === '' ? null : (int)$val;
+            if (str_starts_with($p, 'id_') || in_array($p, ['circuit_id','pilot_age','mechanic_num','length_km','position','penalty_value','team_id'])) {
+                $val = ($val === '' || !isset($val) ) ? null : (int)$val;
             }
             $values[] = $val;
-            }
+        }
 
-        try {
+        try 
+        {
             $pdo  = Container::getInstance()->make('db.admin');
             $ph   = implode(',', array_fill(0, count($values), '?')) . ',@spstate';
             $stmt = $pdo->prepare("CALL $sp($ph)");

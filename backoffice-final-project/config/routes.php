@@ -49,3 +49,4 @@ $router->get('/api/manufacturer', [DashboardController::class, 'manufacturer'], 
 $router->get('/api/stats',        [DashboardController::class, 'stats'],        Router::ROLE_AUTHENTICATED);
 $router->get('/api/admin/list',   [DashboardController::class, 'adminList'],    Router::ROLE_AUTHENTICATED);
 $router->post('/api/admin/crud',  [DashboardController::class, 'adminCrud'],    Router::ROLE_AUTHENTICATED);
+$router->post('/api/admin/reveal-hash', [DashboardController::class, 'revealHash'], Router::ROLE_AUTHENTICATED);

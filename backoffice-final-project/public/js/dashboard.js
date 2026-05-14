@@ -469,7 +469,15 @@ function renderBarChart(canvasId, labels, values, label) {
     new Chart(ctx, {
         type: 'bar',
         data: { labels, datasets: [{ label, data: values, backgroundColor: 'rgba(225,6,0,0.7)', borderColor: '#e10600', borderWidth: 1, borderRadius: 4 }] },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#7a7a85' }, grid: { color: 'rgba(255,255,255,0.05)' } }, y: { ticks: { color: '#7a7a85' }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true } } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,  // ← clave
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: '#7a7a85', maxRotation: 30, font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                y: { ticks: { color: '#7a7a85', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true }
+            }
+        }
     });
 }
 
@@ -480,7 +488,11 @@ function renderDoughnutChart(canvasId, labels, values) {
     new Chart(ctx, {
         type: 'doughnut',
         data: { labels, datasets: [{ data: values, backgroundColor: colors.slice(0, labels.length), borderColor: '#18181c', borderWidth: 2 }] },
-        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#7a7a85', padding: 16 } } } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,  // ← clave
+            plugins: { legend: { position: 'bottom', labels: { color: '#7a7a85', padding: 12, font: { size: 11 } } } }
+        }
     });
 }
 

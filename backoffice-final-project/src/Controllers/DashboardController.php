@@ -91,9 +91,9 @@ class DashboardController {
         $pdo = Container::getInstance()->make('db.admin');
         $stmt = $pdo->prepare("SELECT password_hash FROM users WHERE id_user = ?");
         $stmt->execute([$targetUserId]);
-        $hash = $stmt->fetchColumn(\PDO::FETCH_ASSOC);
+        $hash = $stmt->fetchColumn();
 
-        if (!isset($hash)) { http_Response_code(404); $this->json(['error' => 404, 'message' => 'User not found']); }
+        if (!isset($hash) || $hash === false) { http_Response_code(404); $this->json(['error' => 404, 'message' => 'User not found']); }
 
         $this->json(['hash' => $hash]);
     }

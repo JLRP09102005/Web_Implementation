@@ -685,3 +685,22 @@ tbody td {
 
 .filter-select:focus { border-color: var(--accent); }
 .filter-select option { background: var(--surface-2); color: var(--text); }
+
+/* ============================================================
+   Stats grid
+   ============================================================ */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+}
+
+.chart-wrap {
+    padding: 1rem 1rem 0.75rem;
+    position: relative;
+    height: 240px;
+}
+
+@media (max-width: 900px) {
+    .stats-grid { grid-template-columns: 1fr; }
+}

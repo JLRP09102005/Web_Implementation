@@ -848,15 +848,57 @@ function openEditModal(entity, row) {
 }
 function buildModalFields(entity, cfg, row = null) {
     let html = '';
+
+    // Mapa de campos FK → { endpoint, valueKey, labelKey }
+    const fkMap = {
+        id_pilot_category: { endpoint: '/api/pilot-categories', valueKey: 'id_pilot_category', labelKey: 'pilot_category_name' },
+        id_circuit:        { endpoint: '/api/circuits',         valueKey: 'id_circuit',        labelKey: 'circuit_name' },
+        id_manufacturer:   { endpoint: '/api/manufacturers',    valueKey: 'id_manufacturer',   labelKey: 'manufacturer_name' },
+        id_vehicle:        { endpoint: '/api/vehicles',         valueKey: 'id_vehicle',        labelKey: 'model' },
+        id_race:           { endpoint: '/api/races',            valueKey: 'id_race',           labelKey: 'event_name' },
+        id_team:           { endpoint: '/api/teams',            valueKey: 'id_team',           labelKey: 'team_name' },
+        team_id:           { endpoint: '/api/teams',            valueKey: 'id_team',           labelKey: 'team_name' },
+    };
+
     cfg.keys.forEach(k => {
         const label = colLabel(k);
+        const value = row ? (row[k] ?? '') : '';
+
+        if (fkMap[k]) {
+            // Campo FK → dropdown
+            html += `
+            <div class="field-group">
+                <label class="field-label" for="f_${k}">${label}</label>
+                <select class="field-input" id="f_${k}" name="${k}" required>
+                    <option value="">Cargando...</option>
+                </select>
+            </div>`;
+
+            const fk = fkMap[k];
+            apiFetch(fk.endpoint).then(items => {
+                const sel = document.getElementById(`f_${k}`);
+                if (!sel) return;
+                const list = Array.isArray(items) ? items : [];
+                sel.innerHTML = `<option value="">Selecciona ${label}</option>`
+                    + list.map(item => {
+                        const selected = String(item[fk.valueKey]) === String(value) ? 'selected' : '';
+                        return `<option value="${esc(String(item[fk.valueKey]))}" ${selected}>${esc(item[fk.labelKey])}</option>`;
+                    }).join('');
+            }).catch(() => {
+                const sel = document.getElementById(`f_${k}`);
+                if (sel) sel.innerHTML = `<option value="">Error al cargar</option>`;
+            });
+
+            return;
+        }
+
+        // Campo normal
         const type = inputType(k);
-        const value = row ? esc(row[k] ?? '') : '';
         const placeholder = (k === 'role') ? 'Ej: team-manager, pilot' : label;
         html += `
         <div class="field-group">
             <label class="field-label" for="f_${k}">${label}</label>
-            <input class="field-input" id="f_${k}" name="${k}" type="${type}" value="${value}" placeholder="${placeholder}" required>
+            <input class="field-input" id="f_${k}" name="${k}" type="${type}" value="${esc(String(value))}" placeholder="${placeholder}" required>
         </div>`;
     });
 
@@ -997,12 +1039,13 @@ function colLabel(key) {
 }
 
 function inputType(key) {
-    if (key.includes('date'))              return 'datetime-local';
-    if (key.includes('age') || key.includes('num') || key === 'position' || key.includes('id') || key.includes('points') || key.includes('value')) return 'number';
-    if (key.includes('url'))               return 'url';
-    if (key === 'email')                   return 'email';
-    if (key === 'password_hash')           return 'password';
-    if (key.includes('km'))               return 'number';
+    if (key in { id_pilot_category:1, id_circuit:1, id_manufacturer:1, id_vehicle:1, id_race:1, id_team:1, team_id:1 }) return 'select'; // manejado por buildModalFields
+    if (key.includes('date'))    return 'datetime-local';
+    if (key.includes('age') || key.includes('num') || key === 'position' || key.includes('points') || key.includes('value')) return 'number';
+    if (key.includes('url'))     return 'url';
+    if (key === 'email')         return 'email';
+    if (key === 'password_hash') return 'password';
+    if (key.includes('km'))      return 'number';
     return 'text';
 }
 

@@ -48,5 +48,8 @@ $router->get('/api/inscriptions', [DashboardController::class, 'inscriptions'], 
 $router->get('/api/manufacturer', [DashboardController::class, 'manufacturer'], Router::ROLE_AUTHENTICATED);
 $router->get('/api/stats',        [DashboardController::class, 'stats'],        Router::ROLE_AUTHENTICATED);
 $router->get('/api/admin/list',   [DashboardController::class, 'adminList'],    Router::ROLE_AUTHENTICATED);
+$router->get('/api/pilot-categories', [DashboardController::class, 'pilotCategories'], Router::ROLE_AUTHENTICATED);
+$router->get('/api/circuits',     [DashboardController::class, 'circuits'],     Router::ROLE_AUTHENTICATED);
+$router->get('/api/manufacturers', [DashboardController::class, 'manufacturers'], Router::ROLE_AUTHENTICATED);
 $router->post('/api/admin/crud',  [DashboardController::class, 'adminCrud'],    Router::ROLE_AUTHENTICATED);
 $router->post('/api/admin/reveal-hash', [DashboardController::class, 'revealHash'], Router::ROLE_AUTHENTICATED);

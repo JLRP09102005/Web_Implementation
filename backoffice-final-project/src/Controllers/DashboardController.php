@@ -97,6 +97,7 @@ class DashboardController {
 
         $this->json(['hash' => $hash]);
     }
+    
     // ── GET /api/overview ────────────────────────────────────
 
     public function overview(array $urlParams): void
@@ -492,130 +493,169 @@ class DashboardController {
         }
     }
 
+    // ── GET /api/pilot-categories ────────────────────────────────────
+    public function pilotCategories(array $urlParams): void
+    {
+        $this->requireAuth();
+        $user = $this->session();
+        if (!$this->isAdmin($user['role'])) {
+            $this->json(['error' => 403, 'message' => 'Forbidden']);
+        }
+        try {
+            $pdo  = Container::getInstance()->make('db.readonly');
+            $stmt = $pdo->prepare("SELECT id_pilot_category, pilot_category_name FROM pilot_categories ORDER BY pilot_category_name");
+            $stmt->execute();
+            $this->json($stmt->fetchAll(\PDO::FETCH_ASSOC));
+        } catch (\Throwable $e) {
+            $this->json(['error' => 500, 'message' => $e->getMessage()]);
+        }
+    }
+
+    // ── GET /api/circuits ──────────────────────────────────
+    public function circuits(array $urlParams): void
+    {
+        $this->requireAuth();
+        try {
+            $pdo  = Container::getInstance()->make('db.readonly');
+            $stmt = $pdo->query("SELECT id_circuit, circuit_name, country FROM circuits ORDER BY circuit_name");
+            $this->json($stmt->fetchAll(\PDO::FETCH_ASSOC));
+        } catch (\Throwable $e) { $this->json(['error' => 500, 'message' => $e->getMessage()]); }
+    }
+
+    // ── GET /api/manufacturers ──────────────────────────────────
+    public function manufacturers(array $urlParams): void
+    {
+        $this->requireAuth();
+        try {
+            $pdo  = Container::getInstance()->make('db.readonly');
+            $stmt = $pdo->query("SELECT id_manufacturer, manufacturer_name FROM manufacturers ORDER BY manufacturer_name");
+            $this->json($stmt->fetchAll(\PDO::FETCH_ASSOC));
+        } catch (\Throwable $e) { $this->json(['error' => 500, 'message' => $e->getMessage()]); }
+    }
+
     // ── POST /api/admin/crud ─────────────────────────────────
-
-public function adminCrud(array $urlParams): void
-{
-    $this->requireAuth();
-    $user = $this->session();
-    if (!$this->isAdmin($user['role'])) {
-        http_Response_code(403);
-        $this->json(['error' => 403, 'message' => 'Forbidden']);
-    }
-
-    $body   = json_decode(file_get_contents('php://input'), true) ?? [];
-    $action = $body['action'] ?? '';
-    $entity = $body['entity'] ?? '';
-    $data   = $body['data']   ?? [];
-
-    if (!$action || !$entity) {
-        http_Response_code(400);
-        $this->json(['error' => 400, 'message' => 'action and entity required']);
-    }
-
-    $spMap = [
-        'insert' => [
-            'pilots'        => ['sp_InsertPilotData',        ['pilot_name','pilot_age','id_pilot_category']],
-            'teams'         => ['sp_InsertTeamData',         ['team_name','mechanic_num','id_manufacturer']],
-            'vehicles'      => ['sp_InsertVehicleData',      ['model','specifications_url']],
-            'races'         => ['sp_InsertRaceData',         ['event_name','event_date','event_duration','id_circuit']],
-            'circuits'      => ['sp_InsertCircuitData',      ['circuit_name','country','length_km','direction']],
-            'manufacturers' => ['sp_InsertManufacturerData', ['manufacturer_name','manufacturer_country']],
-            'penalties'     => ['sp_InsertPenaltyData',      ['penalty_type','reason','penalty_value','penalty_applies_to']],
-            'users'         => ['sp_InsertUserData',         ['username','email','password_hash','team_id','role']],
-        ],
-        'update' => [
-            'pilots'        => ['sp_UpdatePilotData',        ['id_pilot','pilot_name','pilot_age','id_pilot_category']],
-            'teams'         => ['sp_UpdateTeamData',         ['id_team','team_name','mechanic_num','id_manufacturer']],
-            'vehicles'      => ['sp_UpdateVehicleData',      ['id_vehicle','model','specifications_url']],
-            'races'         => ['sp_UpdateRaceData',         ['id_race','event_name','event_date','event_duration','id_circuit']],
-            'circuits'      => ['sp_UpdateCircuitData',      ['id_circuit','circuit_name','country','length_km','direction']],
-            'manufacturers' => ['sp_UpdateManufacturerData', ['id_manufacturer','manufacturer_name','manufacturer_country']],
-            'users'         => ['sp_UpdateUserData',         ['id_user','username','email','password_hash','team_id','role']],
-        ],
-        'delete' => [
-            'pilots'        => ['sp_DeletePilotData',        ['id_pilot']],
-            'teams'         => ['sp_DeleteTeamData',         ['id_team']],
-            'vehicles'      => ['sp_DeleteVehicleData',      ['id_vehicle']],
-            'races'         => ['sp_DeleteRaceData',         ['id_race']],
-            'circuits'      => ['sp_DeleteCircuitData',      ['circuit_id']],
-            'manufacturers' => ['sp_DeleteManufacturerData', ['id_manufacturer']],
-            'penalties'     => ['sp_DeletePenaltyData',      ['id_penalty']],
-            'users'         => ['sp_DeleteUserData',         ['id_user']],
-        ],
-    ];
-
-    if (!isset($spMap[$action][$entity])) {
-        http_Response_code(400);
-        $this->json(['error' => 400, 'message' => "Unknown action/entity: $action/$entity"]);
-    }
-
-    [$sp, $params] = $spMap[$action][$entity];
-
-    // ── Verificación de contraseña de administrador para todas las operaciones de usuarios ──
-    if ($entity === 'users' && in_array($action, ['insert', 'update', 'delete'])) {
-        $adminPass = $body['data']['admin_password'] ?? '';
-        if ($adminPass === '') {
-            http_Response_code(400);
-            $this->json(['error' => 400, 'message' => 'Se requiere tu contraseña de administrador']);
+    public function adminCrud(array $urlParams): void
+    {
+        $this->requireAuth();
+        $user = $this->session();
+        if (!$this->isAdmin($user['role'])) {
+            http_Response_code(403);
+            $this->json(['error' => 403, 'message' => 'Forbidden']);
         }
-        $this->verifyAdminPassword($adminPass);
-        unset($body['data']['admin_password']); // no se envía al SP
-    }
 
-    // ── Tratamiento especial para la contraseña de usuario ──
-    if ($entity === 'users') {
-        if ($action === 'insert') {
-            // En inserción la contraseña es obligatoria
-            if (empty($data['password_hash'])) {
+        $body   = json_decode(file_get_contents('php://input'), true) ?? [];
+        $action = $body['action'] ?? '';
+        $entity = $body['entity'] ?? '';
+        $data   = $body['data']   ?? [];
+
+        if (!$action || !$entity) {
+            http_Response_code(400);
+            $this->json(['error' => 400, 'message' => 'action and entity required']);
+        }
+
+        $spMap = [
+            'insert' => [
+                'pilots'        => ['sp_InsertPilotData',        ['pilot_name','pilot_age','id_pilot_category']],
+                'teams'         => ['sp_InsertTeamData',         ['team_name','mechanic_num','id_manufacturer']],
+                'vehicles'      => ['sp_InsertVehicleData',      ['model','specifications_url']],
+                'races'         => ['sp_InsertRaceData',         ['event_name','event_date','event_duration','id_circuit']],
+                'circuits'      => ['sp_InsertCircuitData',      ['circuit_name','country','length_km','direction']],
+                'manufacturers' => ['sp_InsertManufacturerData', ['manufacturer_name','manufacturer_country']],
+                'penalties'     => ['sp_InsertPenaltyData',      ['penalty_type','reason','penalty_value','penalty_applies_to']],
+                'users'         => ['sp_InsertUserData',         ['username','email','password_hash','team_id','role']],
+            ],
+            'update' => [
+                'pilots'        => ['sp_UpdatePilotData',        ['id_pilot','pilot_name','pilot_age','id_pilot_category']],
+                'teams'         => ['sp_UpdateTeamData',         ['id_team','team_name','mechanic_num','id_manufacturer']],
+                'vehicles'      => ['sp_UpdateVehicleData',      ['id_vehicle','model','specifications_url']],
+                'races'         => ['sp_UpdateRaceData',         ['id_race','event_name','event_date','event_duration','id_circuit']],
+                'circuits'      => ['sp_UpdateCircuitData',      ['id_circuit','circuit_name','country','length_km','direction']],
+                'manufacturers' => ['sp_UpdateManufacturerData', ['id_manufacturer','manufacturer_name','manufacturer_country']],
+                'users'         => ['sp_UpdateUserData',         ['id_user','username','email','password_hash','team_id','role']],
+            ],
+            'delete' => [
+                'pilots'        => ['sp_DeletePilotData',        ['id_pilot']],
+                'teams'         => ['sp_DeleteTeamData',         ['id_team']],
+                'vehicles'      => ['sp_DeleteVehicleData',      ['id_vehicle']],
+                'races'         => ['sp_DeleteRaceData',         ['id_race']],
+                'circuits'      => ['sp_DeleteCircuitData',      ['circuit_id']],
+                'manufacturers' => ['sp_DeleteManufacturerData', ['id_manufacturer']],
+                'penalties'     => ['sp_DeletePenaltyData',      ['id_penalty']],
+                'users'         => ['sp_DeleteUserData',         ['id_user']],
+            ],
+        ];
+
+        if (!isset($spMap[$action][$entity])) {
+            http_Response_code(400);
+            $this->json(['error' => 400, 'message' => "Unknown action/entity: $action/$entity"]);
+        }
+
+        [$sp, $params] = $spMap[$action][$entity];
+
+        // ── Verificación de contraseña de administrador para todas las operaciones de usuarios ──
+        if ($entity === 'users' && in_array($action, ['insert', 'update', 'delete'])) {
+            $adminPass = $body['data']['admin_password'] ?? '';
+            if ($adminPass === '') {
                 http_Response_code(400);
-                $this->json(['error' => 400, 'message' => 'La contraseña del usuario no puede estar vacía']);
+                $this->json(['error' => 400, 'message' => 'Se requiere tu contraseña de administrador']);
             }
-            $data['password_hash'] = password_hash($data['password_hash'], PASSWORD_BCRYPT);
-        } elseif ($action === 'update') {
-            // En actualización, si el campo está vacío se omite (no se modifica la contraseña)
-            if (empty($data['password_hash'])) {
-                $params = array_values(array_diff($params, ['password_hash']));
-                unset($data['password_hash']);
-            } else {
+            $this->verifyAdminPassword($adminPass);
+            unset($body['data']['admin_password']); // no se envía al SP
+        }
+
+        // ── Tratamiento especial para la contraseña de usuario ──
+        if ($entity === 'users') {
+            if ($action === 'insert') {
+                // En inserción la contraseña es obligatoria
+                if (empty($data['password_hash'])) {
+                    http_Response_code(400);
+                    $this->json(['error' => 400, 'message' => 'La contraseña del usuario no puede estar vacía']);
+                }
                 $data['password_hash'] = password_hash($data['password_hash'], PASSWORD_BCRYPT);
+            } elseif ($action === 'update') {
+                // En actualización, si el campo está vacío se omite (no se modifica la contraseña)
+                if (empty($data['password_hash'])) {
+                    $params = array_values(array_diff($params, ['password_hash']));
+                    unset($data['password_hash']);
+                } else {
+                    $data['password_hash'] = password_hash($data['password_hash'], PASSWORD_BCRYPT);
+                }
             }
         }
-    }
 
-    $values = [];
-    foreach ($params as $p) {
-        if (!array_key_exists($p, $data)) {
-            http_Response_code(400);
-            $this->json(['error' => 400, 'message' => "Missing field: $p"]);
+        $values = [];
+        foreach ($params as $p) {
+            if (!array_key_exists($p, $data)) {
+                http_Response_code(400);
+                $this->json(['error' => 400, 'message' => "Missing field: $p"]);
+            }
+            $val = $data[$p];
+            // Si el campo es un ID o entero, forzar cast
+            if (str_starts_with($p, 'id_') || in_array($p, ['circuit_id','pilot_age','mechanic_num','length_km','position','penalty_value','team_id'])) {
+                $val = ($val === '' || !isset($val)) ? null : (int)$val;
+            }
+            $values[] = $val;
         }
-        $val = $data[$p];
-        // Si el campo es un ID o entero, forzar cast
-        if (str_starts_with($p, 'id_') || in_array($p, ['circuit_id','pilot_age','mechanic_num','length_km','position','penalty_value','team_id'])) {
-            $val = ($val === '' || !isset($val)) ? null : (int)$val;
-        }
-        $values[] = $val;
-    }
 
-    try {
-        $pdo  = Container::getInstance()->make('db.admin');
-        $ph   = implode(',', array_fill(0, count($values), '?')) . ',@spstate';
-        $stmt = $pdo->prepare("CALL $sp($ph)");
-        $stmt->execute($values);
-        $stmt->closeCursor();
-        $state = (int)($pdo->query("SELECT @spstate AS s")->fetchColumn());
+        try {
+            $pdo  = Container::getInstance()->make('db.admin');
+            $ph   = implode(',', array_fill(0, count($values), '?')) . ',@spstate';
+            $stmt = $pdo->prepare("CALL $sp($ph)");
+            $stmt->execute($values);
+            $stmt->closeCursor();
+            $state = (int)($pdo->query("SELECT @spstate AS s")->fetchColumn());
 
-        if ($state !== 1) {
+            if ($state !== 1) {
+                http_Response_code(500);
+                $this->json(['error' => 500, 'message' => "SP returned state $state"]);
+            }
+
+            $this->json(['success' => true]);
+        } catch (\Throwable $e) {
             http_Response_code(500);
-            $this->json(['error' => 500, 'message' => "SP returned state $state"]);
+            $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
-
-        $this->json(['success' => true]);
-    } catch (\Throwable $e) {
-        http_Response_code(500);
-        $this->json(['error' => 500, 'message' => $e->getMessage()]);
     }
-}
 
     // ── Helper SP ────────────────────────────────────────────
 

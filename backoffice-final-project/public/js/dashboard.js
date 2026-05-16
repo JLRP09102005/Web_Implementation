@@ -196,27 +196,71 @@ function renderRaceRow(r) {
     </tr>`;
 }
 
+// ── Filtro genérico con selector de columna ───────────────────────────────
+function initColumnFilter(searchId, selectId, data, columns, tbodyId, renderFn) {
+    const searchEl = document.getElementById(searchId);
+    const selectEl = document.getElementById(selectId);
+    if (!searchEl || !selectEl) return;
+
+    // Llenar el select con las columnas disponibles
+    selectEl.innerHTML = `<option value="all">Todas las columnas</option>`
+        + columns.map(c => `<option value="${c.key}">${c.label}</option>`).join('');
+
+    function apply() {
+        const q   = searchEl.value.toLowerCase().trim();
+        const col = selectEl.value;
+        if (!q) {
+            document.getElementById(tbodyId).innerHTML = data.map(renderFn).join('');
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+        const filtered = data.filter(row => {
+            if (col === 'all') {
+                return columns.some(c => String(row[c.key] ?? '').toLowerCase().includes(q));
+            }
+            return String(row[col] ?? '').toLowerCase().includes(q);
+        });
+        const tbody = document.getElementById(tbodyId);
+        if (tbody) {
+            tbody.innerHTML = filtered.length
+                ? filtered.map(renderFn).join('')
+                : `<tr><td colspan="99" class="empty-state-cell">Sin resultados</td></tr>`;
+            if (window.lucide) lucide.createIcons();
+        }
+    }
+
+    searchEl.addEventListener('input',  apply);
+    selectEl.addEventListener('change', apply);
+}
+
 function initRaceFilters() {
-    const searchEl = document.getElementById('raceSearch');
     const filterEl = document.getElementById('raceStatusFilter');
-    if (!searchEl && !filterEl) return;
-    searchEl?.addEventListener('input', applyRaceFilters);
     filterEl?.addEventListener('change', applyRaceFilters);
+
+    initColumnFilter('raceSearch', 'raceColFilter', _races, [
+        { key: 'event_name',    label: 'Carrera'   },
+        { key: 'circuit_name',  label: 'Circuito'  },
+        { key: 'country',       label: 'País'      },
+    ], 'racesBody', renderRaceRow);
 }
 
 function applyRaceFilters() {
     const q      = document.getElementById('raceSearch')?.value.toLowerCase() ?? '';
+    const col    = document.getElementById('raceColFilter')?.value ?? 'all';
     const status = document.getElementById('raceStatusFilter')?.value ?? 'all';
     const now    = new Date();
     const filtered = _races.filter(r => {
-        const name = (r.event_name ?? r.eventname ?? '').toLowerCase();
-        const circuit = (r.circuit_name ?? r.circuitname ?? '').toLowerCase();
-        const matchText = !q || name.includes(q) || circuit.includes(q);
         const d = new Date(r.event_date ?? r.eventdate ?? r.date ?? '');
         const matchStatus = status === 'all'
             || (status === 'upcoming' && d > now)
             || (status === 'past'     && d <= now);
-        return matchText && matchStatus;
+        if (!matchStatus) return false;
+        if (!q) return true;
+        const cols = [
+            { key: 'event_name' }, { key: 'circuit_name' }, { key: 'country' }
+        ];
+        if (col === 'all') return cols.some(c => String(r[c.key] ?? '').toLowerCase().includes(q));
+        return String(r[col] ?? '').toLowerCase().includes(q);
     });
     const tbody = document.getElementById('racesBody');
     if (tbody) {
@@ -241,26 +285,32 @@ function renderPilotRow(r) {
 }
 
 function initPilotFilters() {
-    const searchEl = document.getElementById('pilotSearch');
-    const catEl    = document.getElementById('pilotCategoryFilter');
-    if (!searchEl && !catEl) return;
-    // Llenar select de categorías dinámicamente
+    const catEl = document.getElementById('pilotCategoryFilter');
     if (catEl) {
-        const cats = [...new Set(_pilots.map(p => p.pilot_category_name ?? p.pilotcategoryname ?? p.category_name ?? p.category).filter(Boolean))].sort();
+        const cats = [...new Set(_pilots.map(p =>
+            p.pilot_category_name ?? p.pilotcategoryname ?? p.category_name ?? p.category
+        ).filter(Boolean))].sort();
         catEl.innerHTML = `<option value="all">Todas las categorías</option>`
             + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+        catEl.addEventListener('change', applyPilotFilters);
     }
-    searchEl?.addEventListener('input',  applyPilotFilters);
-    catEl?.addEventListener('change', applyPilotFilters);
+    document.getElementById('pilotSearch')?.addEventListener('input', applyPilotFilters);
+    document.getElementById('pilotColFilter')?.addEventListener('change', applyPilotFilters);
 }
 
 function applyPilotFilters() {
     const q   = document.getElementById('pilotSearch')?.value.toLowerCase() ?? '';
+    const col = document.getElementById('pilotColFilter')?.value ?? 'all';
     const cat = document.getElementById('pilotCategoryFilter')?.value ?? 'all';
+    const cols = [
+        { key: 'pilot_name' }, { key: 'pilot_age' }, { key: 'pilot_category_name' }
+    ];
     const filtered = _pilots.filter(p => {
-        const name = (p.pilot_name ?? p.pilotname ?? p.name ?? '').toLowerCase();
         const pcat = p.pilot_category_name ?? p.pilotcategoryname ?? p.category_name ?? p.category ?? '';
-        return (!q || name.includes(q)) && (cat === 'all' || pcat === cat);
+        if (cat !== 'all' && pcat !== cat) return false;
+        if (!q) return true;
+        if (col === 'all') return cols.some(c => String(p[c.key] ?? '').toLowerCase().includes(q));
+        return String(p[col] ?? '').toLowerCase().includes(q);
     });
     const tbody = document.getElementById('pilotsBody');
     if (tbody) {
@@ -285,25 +335,32 @@ function renderTeamRow(r) {
 }
 
 function initTeamFilters() {
-    const searchEl = document.getElementById('teamSearch');
-    const mfrEl    = document.getElementById('teamManufacturerFilter');
-    if (!searchEl && !mfrEl) return;
+    const mfrEl = document.getElementById('teamManufacturerFilter');
     if (mfrEl) {
-        const mfrs = [...new Set(_teams.map(t => t.manufacturer_name ?? t.manufacturername ?? t.manufacturer).filter(Boolean))].sort();
+        const mfrs = [...new Set(_teams.map(t =>
+            t.manufacturer_name ?? t.manufacturername ?? t.manufacturer
+        ).filter(Boolean))].sort();
         mfrEl.innerHTML = `<option value="all">Todos los fabricantes</option>`
             + mfrs.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+        mfrEl.addEventListener('change', applyTeamFilters);
     }
-    searchEl?.addEventListener('input',  applyTeamFilters);
-    mfrEl?.addEventListener('change', applyTeamFilters);
+    document.getElementById('teamSearch')?.addEventListener('input', applyTeamFilters);
+    document.getElementById('teamColFilter')?.addEventListener('change', applyTeamFilters);
 }
 
 function applyTeamFilters() {
     const q   = document.getElementById('teamSearch')?.value.toLowerCase() ?? '';
+    const col = document.getElementById('teamColFilter')?.value ?? 'all';
     const mfr = document.getElementById('teamManufacturerFilter')?.value ?? 'all';
+    const cols = [
+        { key: 'team_name' }, { key: 'manufacturer_name' }, { key: 'mechanics_num' }
+    ];
     const filtered = _teams.filter(t => {
-        const name = (t.team_name ?? t.teamname ?? t.name ?? '').toLowerCase();
-        const tm   = t.manufacturer_name ?? t.manufacturername ?? t.manufacturer ?? '';
-        return (!q || name.includes(q)) && (mfr === 'all' || tm === mfr);
+        const tm = t.manufacturer_name ?? t.manufacturername ?? t.manufacturer ?? '';
+        if (mfr !== 'all' && tm !== mfr) return false;
+        if (!q) return true;
+        if (col === 'all') return cols.some(c => String(t[c.key] ?? '').toLowerCase().includes(q));
+        return String(t[col] ?? '').toLowerCase().includes(q);
     });
     const tbody = document.getElementById('teamsBody');
     if (tbody) {
@@ -327,17 +384,25 @@ function renderVehicleRow(r) {
 }
 
 function initVehicleFilters() {
-    const searchEl = document.getElementById('vehicleSearch');
-    searchEl?.addEventListener('input', () => {
-        const q = searchEl.value.toLowerCase();
-        const filtered = _vehicles.filter(v => (v.model ?? '').toLowerCase().includes(q));
-        const tbody = document.getElementById('vehiclesBody');
-        if (tbody) {
-            tbody.innerHTML = filtered.length
-                ? filtered.map(renderVehicleRow).join('')
-                : `<tr><td colspan="2" class="empty-state-cell">Sin resultados</td></tr>`;
-        }
+    document.getElementById('vehicleSearch')?.addEventListener('input', applyVehicleFilters);
+    document.getElementById('vehicleColFilter')?.addEventListener('change', applyVehicleFilters);
+}
+
+function applyVehicleFilters() {
+    const q   = document.getElementById('vehicleSearch')?.value.toLowerCase() ?? '';
+    const col = document.getElementById('vehicleColFilter')?.value ?? 'all';
+    const cols = [{ key: 'model' }, { key: 'specifications_url' }];
+    const filtered = _vehicles.filter(v => {
+        if (!q) return true;
+        if (col === 'all') return cols.some(c => String(v[c.key] ?? '').toLowerCase().includes(q));
+        return String(v[col] ?? '').toLowerCase().includes(q);
     });
+    const tbody = document.getElementById('vehiclesBody');
+    if (tbody) {
+        tbody.innerHTML = filtered.length
+            ? filtered.map(renderVehicleRow).join('')
+            : `<tr><td colspan="2" class="empty-state-cell">Sin resultados</td></tr>`;
+    }
 }
 
 // ── PENALIZACIONES ───────────────────────────────────────────────────────────
@@ -363,22 +428,26 @@ function renderPenaltyRow(r) {
 }
 
 function initPenaltyFilters() {
-    const typeEl   = document.getElementById('penaltyTypeFilter');
-    const searchEl = document.getElementById('penaltySearch');
-    if (!typeEl && !searchEl) return;
+    const typeEl = document.getElementById('penaltyTypeFilter');
     typeEl?.addEventListener('change', applyPenaltyFilters);
-    searchEl?.addEventListener('input', applyPenaltyFilters);
+    document.getElementById('penaltySearch')?.addEventListener('input', applyPenaltyFilters);
+    document.getElementById('penaltyColFilter')?.addEventListener('change', applyPenaltyFilters);
 }
 
 function applyPenaltyFilters() {
-    const type    = document.getElementById('penaltyTypeFilter')?.value ?? 'all';
-    const q       = document.getElementById('penaltySearch')?.value.toLowerCase() ?? '';
+    const q    = document.getElementById('penaltySearch')?.value.toLowerCase() ?? '';
+    const col  = document.getElementById('penaltyColFilter')?.value ?? 'all';
+    const type = document.getElementById('penaltyTypeFilter')?.value ?? 'all';
+    const cols = [
+        { key: 'reason' }, { key: 'team_name' }, { key: 'pilot_name' },
+        { key: 'event_name' }, { key: 'penalty_value' }
+    ];
     const filtered = _penalties.filter(p => {
-        const ptype  = p.penalty_type ?? p.penaltytype ?? '';
-        const reason = (p.reason ?? '').toLowerCase();
-        const team   = (p.team_name ?? p.teamname ?? '').toLowerCase();
-        return (type === 'all' || ptype === type)
-            && (!q || reason.includes(q) || team.includes(q));
+        const ptype = p.penalty_type ?? p.penaltytype ?? '';
+        if (type !== 'all' && ptype !== type) return false;
+        if (!q) return true;
+        if (col === 'all') return cols.some(c => String(p[c.key] ?? '').toLowerCase().includes(q));
+        return String(p[col] ?? '').toLowerCase().includes(q);
     });
     const tbody = document.getElementById('penaltiesBody');
     if (tbody) {
@@ -410,25 +479,33 @@ function renderResultRow(r) {
 }
 
 function initResultFilters() {
-    const searchEl = document.getElementById('resultSearch');
-    const raceEl   = document.getElementById('resultRaceFilter');
-    if (!searchEl && !raceEl) return;
+    const raceEl = document.getElementById('resultRaceFilter');
     if (raceEl) {
-        const races = [...new Set(_results.map(r => r.event_name ?? r.eventname ?? r.race_name).filter(Boolean))].sort();
+        const races = [...new Set(_results.map(r =>
+            r.event_name ?? r.eventname ?? r.race_name
+        ).filter(Boolean))].sort();
         raceEl.innerHTML = `<option value="all">Todas las carreras</option>`
             + races.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
+        raceEl.addEventListener('change', applyResultFilters);
     }
-    searchEl?.addEventListener('input',  applyResultFilters);
-    raceEl?.addEventListener('change', applyResultFilters);
+    document.getElementById('resultSearch')?.addEventListener('input', applyResultFilters);
+    document.getElementById('resultColFilter')?.addEventListener('change', applyResultFilters);
 }
 
 function applyResultFilters() {
     const q    = document.getElementById('resultSearch')?.value.toLowerCase() ?? '';
+    const col  = document.getElementById('resultColFilter')?.value ?? 'all';
     const race = document.getElementById('resultRaceFilter')?.value ?? 'all';
+    const cols = [
+        { key: 'team_name' }, { key: 'model' }, { key: 'event_name' },
+        { key: 'position'  }, { key: 'final_time' }
+    ];
     const filtered = _results.filter(r => {
-        const team  = (r.team_name ?? r.teamname ?? '').toLowerCase();
         const rname = r.event_name ?? r.eventname ?? r.race_name ?? '';
-        return (!q || team.includes(q)) && (race === 'all' || rname === race);
+        if (race !== 'all' && rname !== race) return false;
+        if (!q) return true;
+        if (col === 'all') return cols.some(c => String(r[c.key] ?? '').toLowerCase().includes(q));
+        return String(r[col] ?? '').toLowerCase().includes(q);
     });
     const tbody = document.getElementById('resultsBody');
     if (tbody) {
@@ -456,10 +533,23 @@ async function loadStats() {
     try {
         const data = await apiFetch('/api/stats');
         if (data.error) return;
-        const teamPoints = data.team_points ?? data.teampoints ?? {};
-        const penTypes   = data.penalty_types ?? data.penaltytypes ?? {};
-        renderBarChart('chartTeamPoints',   Object.keys(teamPoints), Object.values(teamPoints), 'Puntos');
-        renderDoughnutChart('chartPenaltyTypes', Object.keys(penTypes),   Object.values(penTypes));
+
+        const teamPoints      = data.team_points         ?? {};
+        const penTypes        = data.penalty_types        ?? {};
+        const raceParticip    = data.race_participations  ?? {};
+        const penByTeam       = data.penalty_by_team      ?? {};
+        const ageGroups       = data.age_groups           ?? {};
+        const pilotPoints     = data.pilot_points         ?? {};
+        const penPointsByTeam = data.penalty_points_team  ?? {};
+
+        renderBarChart('chartTeamPoints',     Object.keys(teamPoints),      Object.values(teamPoints),      'Puntos');
+        renderDoughnutChart('chartPenaltyTypes', Object.keys(penTypes),     Object.values(penTypes));
+        renderBarChart('chartRaceParticip',   Object.keys(raceParticip),    Object.values(raceParticip),    'Equipos');
+        renderBarChart('chartPenByTeam',      Object.keys(penByTeam),       Object.values(penByTeam),       'Valor');
+        renderDoughnutChart('chartAgeGroups', Object.keys(ageGroups),       Object.values(ageGroups));
+        renderBarChart('chartPilotPoints',    Object.keys(pilotPoints),     Object.values(pilotPoints),     'Puntos');
+        renderBarChart('chartPenPointsByTeam',Object.keys(penPointsByTeam), Object.values(penPointsByTeam), 'Pts pen.');
+
     } catch (e) { console.error('stats error', e); }
 }
 
@@ -468,14 +558,31 @@ function renderBarChart(canvasId, labels, values, label) {
     if (!ctx || !window.Chart) return;
     new Chart(ctx, {
         type: 'bar',
-        data: { labels, datasets: [{ label, data: values, backgroundColor: 'rgba(225,6,0,0.7)', borderColor: '#e10600', borderWidth: 1, borderRadius: 4 }] },
+        data: {
+            labels,
+            datasets: [{
+                label,
+                data: values,
+                backgroundColor: 'rgba(225,6,0,0.7)',
+                borderColor: '#e10600',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
         options: {
             responsive: true,
-            maintainAspectRatio: false,  // ← clave
+            maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                x: { ticks: { color: '#7a7a85', maxRotation: 30, font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                y: { ticks: { color: '#7a7a85', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true }
+                x: {
+                    ticks: { color: '#7a7a85', maxRotation: 30, font: { size: 11 } },
+                    grid:  { color: 'rgba(255,255,255,0.05)' }
+                },
+                y: {
+                    ticks: { color: '#7a7a85', font: { size: 11 } },
+                    grid:  { color: 'rgba(255,255,255,0.05)' },
+                    beginAtZero: true
+                }
             }
         }
     });
@@ -487,11 +594,24 @@ function renderDoughnutChart(canvasId, labels, values) {
     const colors = ['#e10600','#ff6b6b','#ff9a5c','#ffd166','#06d6a0','#118ab2','#7b2d8b','#c77dff'];
     new Chart(ctx, {
         type: 'doughnut',
-        data: { labels, datasets: [{ data: values, backgroundColor: colors.slice(0, labels.length), borderColor: '#18181c', borderWidth: 2 }] },
+        data: {
+            labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: '#18181c',
+                borderWidth: 2
+            }]
+        },
         options: {
             responsive: true,
-            maintainAspectRatio: false,  // ← clave
-            plugins: { legend: { position: 'bottom', labels: { color: '#7a7a85', padding: 12, font: { size: 11 } } } }
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { color: '#7a7a85', padding: 12, font: { size: 11 } }
+                }
+            }
         }
     });
 }

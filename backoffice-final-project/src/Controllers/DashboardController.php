@@ -97,7 +97,6 @@ class DashboardController {
 
         $this->json(['hash' => $hash]);
     }
-
     // ── GET /api/overview ────────────────────────────────────
 
     public function overview(array $urlParams): void
@@ -353,37 +352,103 @@ class DashboardController {
 
         $allowed = ['software-administrator', 'administratorDB', 'data-analyst', 'race-director'];
         if (!in_array($role, $allowed)) {
-            http_Response_code(403);
             $this->json(['error' => 403, 'message' => 'Forbidden']);
         }
 
         try {
-            $results   = $this->resultModel->getAllAdmin($userId);
-            $penalties = $this->penaltyModel->getAllAdmin($userId);
+            $results        = $this->callSP('sp_admin_all_results', $userId);
+            $penalties      = $this->callSP('sp_admin_all_penalties', $userId);
+            $pilots         = $this->callSP('sp_admin_all_pilots', $userId);
+            $pilotInscrip   = $this->callSP('sp_admin_all_pilots_inscriptions', $userId);
 
+            // 1. Puntos por equipo (Top 10)
             $teamPoints = [];
             foreach ($results as $r) {
-                $team = $r['team_name'] ?? ($r['id_vehicle'] ?? 'Unknown');
+                $team = $r['team_name'] ?? 'Unknown';
                 $teamPoints[$team] = ($teamPoints[$team] ?? 0) + (int)($r['base_points_team'] ?? 0);
             }
             arsort($teamPoints);
-            $top10 = array_slice($teamPoints, 0, 10, true);
+            $teamPoints = array_slice($teamPoints, 0, 10, true);
 
+            // 2. Penalizaciones por tipo
             $penTypes = [];
             foreach ($penalties as $p) {
                 $type = $p['penalty_type'] ?? 'Unknown';
                 $penTypes[$type] = ($penTypes[$type] ?? 0) + 1;
             }
 
+            // 3. Participaciones por carrera
+            $raceParticip = [];
+            foreach ($results as $r) {
+                $race = $r['event_name'] ?? 'Unknown';
+                $raceParticip[$race] = ($raceParticip[$race] ?? 0) + 1;
+            }
+
+            // 4. Valor total de penalizaciones por equipo (Top 10)
+            $penByTeam = [];
+            foreach ($penalties as $p) {
+                $team = $p['team_name'] ?? 'Sin equipo';
+                if (!$team) continue;
+                $penByTeam[$team] = ($penByTeam[$team] ?? 0) + (float)($p['penalty_value'] ?? 0);
+            }
+            arsort($penByTeam);
+            $penByTeam = array_slice($penByTeam, 0, 10, true);
+
+            // 5. Distribución de edades de pilotos
+            $ageGroups = ['18-25' => 0, '26-30' => 0, '31-35' => 0, '36-40' => 0, '41+' => 0];
+            foreach ($pilots as $p) {
+                $age = (int)($p['pilot_age'] ?? 0);
+                if ($age <= 25)      $ageGroups['18-25']++;
+                elseif ($age <= 30)  $ageGroups['26-30']++;
+                elseif ($age <= 35)  $ageGroups['31-35']++;
+                elseif ($age <= 40)  $ageGroups['36-40']++;
+                else                 $ageGroups['41+']++;
+            }
+
+            // 6. Puntos por piloto (Top 10, via pilots_inscriptions + results)
+            $pilotPoints = [];
+            foreach ($pilotInscrip as $pi) {
+                $pilotName = $pi['pilot_name'] ?? 'Unknown';
+                // Buscar resultado matching vehicle+race+team
+                foreach ($results as $r) {
+                    if ($r['id_vehicle'] == $pi['id_vehicle']
+                        && $r['id_race']    == $pi['id_race']
+                        && $r['id_team']    == $pi['id_team']) {
+                        $pilotPoints[$pilotName] = ($pilotPoints[$pilotName] ?? 0)
+                            + (int)($r['base_points_pilot'] ?? 0)
+                            - (int)($r['penalty_points_pilot'] ?? 0);
+                        break;
+                    }
+                }
+            }
+            arsort($pilotPoints);
+            $pilotPoints = array_slice($pilotPoints, 0, 10, true);
+
+            // 7. Número de penalizaciones por equipo
+            $penCountByTeam = [];
+            foreach ($penalties as $p) {
+                $team = $p['team_name'] ?? null;
+                if (empty($team)) continue;
+                $penCountByTeam[$team] = ($penCountByTeam[$team] ?? 0) + 1;
+            }
+            arsort($penCountByTeam);
+            $penCountByTeam = array_slice($penCountByTeam, 0, 10, true);
+
             $this->json([
-                'team_points'   => $top10,
-                'penalty_types' => $penTypes,
+                'team_points'       => $teamPoints,
+                'penalty_types'     => $penTypes,
+                'race_participations' => $raceParticip,
+                'penalty_by_team'   => $penByTeam,
+                'age_groups'        => $ageGroups,
+                'pilot_points'      => $pilotPoints,
+                'penalty_points_team' => $penCountByTeam,
             ]);
+
         } catch (\Throwable $e) {
-            http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
         }
     }
+
 
     // ── GET /api/admin/list ──────────────────────────────────
 

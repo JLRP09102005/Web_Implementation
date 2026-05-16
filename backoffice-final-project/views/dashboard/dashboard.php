@@ -164,7 +164,13 @@ $navItems = [
                     <h3><i data-lucide="flag" width="15" height="15" aria-hidden="true"></i> Calendario</h3>
                 </div>
                 <div class="table-filters">
-                    <input type="search" id="raceSearch" class="filter-input" placeholder="Buscar carrera o circuito…">
+                    <input type="search" id="raceSearch" class="filter-input" placeholder="Buscar…">
+                    <select id="raceColFilter" class="filter-select">
+                        <option value="all">Todas las columnas</option>
+                        <option value="event_name">Carrera</option>
+                        <option value="circuit_name">Circuito</option>
+                        <option value="country">País</option>
+                    </select>
                     <select id="raceStatusFilter" class="filter-select">
                         <option value="all">Todas</option>
                         <option value="upcoming">Próximas</option>
@@ -197,7 +203,13 @@ $navItems = [
                     <h3><i data-lucide="user" width="15" height="15" aria-hidden="true"></i> Listado</h3>
                 </div>
                 <div class="table-filters">
-                    <input type="search" id="pilotSearch" class="filter-input" placeholder="Buscar piloto…">
+                    <input type="search" id="pilotSearch" class="filter-input" placeholder="Buscar…">
+                    <select id="pilotColFilter" class="filter-select">
+                        <option value="all">Todas las columnas</option>
+                        <option value="pilot_name">Nombre</option>
+                        <option value="pilot_age">Edad</option>
+                        <option value="pilot_category_name">Categoría</option>
+                    </select>
                     <select id="pilotCategoryFilter" class="filter-select">
                         <option value="all">Todas las categorías</option>
                     </select>
@@ -228,7 +240,13 @@ $navItems = [
                     <h3><i data-lucide="users" width="15" height="15" aria-hidden="true"></i> Listado</h3>
                 </div>
                 <div class="table-filters">
-                    <input type="search" id="teamSearch" class="filter-input" placeholder="Buscar equipo…">
+                    <input type="search" id="teamSearch" class="filter-input" placeholder="Buscar…">
+                    <select id="teamColFilter" class="filter-select">
+                        <option value="all">Todas las columnas</option>
+                        <option value="team_name">Equipo</option>
+                        <option value="manufacturer_name">Fabricante</option>
+                        <option value="mechanics_num">Mecánicos</option>
+                    </select>
                     <select id="teamManufacturerFilter" class="filter-select">
                         <option value="all">Todos los fabricantes</option>
                     </select>
@@ -259,7 +277,12 @@ $navItems = [
                     <h3><i data-lucide="car" width="15" height="15" aria-hidden="true"></i> Vehículos</h3>
                 </div>
                 <div class="table-filters">
-                    <input type="search" id="vehicleSearch" class="filter-input" placeholder="Buscar modelo…">
+                    <input type="search" id="vehicleSearch" class="filter-input" placeholder="Buscar…">
+                    <select id="vehicleColFilter" class="filter-select">
+                        <option value="all">Todas las columnas</option>
+                        <option value="model">Modelo</option>
+                        <option value="specifications_url">Especificaciones</option>
+                    </select>
                 </div>
                 <div class="table-wrap">
                     <table>
@@ -287,7 +310,15 @@ $navItems = [
                     <h3><i data-lucide="alert-triangle" width="15" height="15" aria-hidden="true"></i> Penalizaciones</h3>
                 </div>
                 <div class="table-filters">
-                    <input type="search" id="penaltySearch" class="filter-input" placeholder="Buscar motivo o equipo…">
+                    <input type="search" id="penaltySearch" class="filter-input" placeholder="Buscar…">
+                    <select id="penaltyColFilter" class="filter-select">
+                        <option value="all">Todas las columnas</option>
+                        <option value="reason">Motivo</option>
+                        <option value="team_name">Equipo</option>
+                        <option value="pilot_name">Piloto</option>
+                        <option value="event_name">Carrera</option>
+                        <option value="penalty_value">Valor</option>
+                    </select>
                     <select id="penaltyTypeFilter" class="filter-select">
                         <option value="all">Todos los tipos</option>
                         <option value="POINTS">POINTS</option>
@@ -322,7 +353,15 @@ $navItems = [
                     <h3><i data-lucide="trophy" width="15" height="15" aria-hidden="true"></i> Tabla de resultados</h3>
                 </div>
                 <div class="table-filters">
-                    <input type="search" id="resultSearch" class="filter-input" placeholder="Buscar equipo…">
+                    <input type="search" id="resultSearch" class="filter-input" placeholder="Buscar…">
+                    <select id="resultColFilter" class="filter-select">
+                        <option value="all">Todas las columnas</option>
+                        <option value="team_name">Equipo</option>
+                        <option value="model">Vehículo</option>
+                        <option value="event_name">Carrera</option>
+                        <option value="position">Posición</option>
+                        <option value="final_time">Tiempo</option>
+                    </select>
                     <select id="resultRaceFilter" class="filter-select">
                         <option value="all">Todas las carreras</option>
                     </select>
@@ -373,20 +412,48 @@ $navItems = [
                 <h2>Estadísticas</h2>
                 <p class="section-sub">Métricas globales del campeonato</p>
             </div>
-            <div class="card">
-                <div class="card-header">
-                    <h3><i data-lucide="bar-chart-2" width="15" height="15" aria-hidden="true"></i> Puntos por equipo (Top 10)</h3>
+            <div class="stats-grid">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i data-lucide="bar-chart-2" width="15" height="15"></i> Puntos por equipo (Top 10)</h3>
+                    </div>
+                    <div class="chart-wrap"><canvas id="chartTeamPoints"></canvas></div>
                 </div>
-                <div style="padding:1rem">
-                    <canvas id="chartTeamPoints" height="300"></canvas>
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i data-lucide="pie-chart" width="15" height="15"></i> Penalizaciones por tipo</h3>
+                    </div>
+                    <div class="chart-wrap"><canvas id="chartPenaltyTypes"></canvas></div>
                 </div>
-            </div>
-            <div class="card mt-6">
-                <div class="card-header">
-                    <h3><i data-lucide="alert-triangle" width="15" height="15" aria-hidden="true"></i> Penalizaciones por tipo</h3>
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i data-lucide="flag" width="15" height="15"></i> Participaciones por carrera</h3>
+                    </div>
+                    <div class="chart-wrap"><canvas id="chartRaceParticip"></canvas></div>
                 </div>
-                <div style="padding:1rem">
-                    <canvas id="chartPenaltyTypes" height="260"></canvas>
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i data-lucide="alert-triangle" width="15" height="15"></i> Valor penalizaciones por equipo</h3>
+                    </div>
+                    <div class="chart-wrap"><canvas id="chartPenByTeam"></canvas></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i data-lucide="users" width="15" height="15"></i> Distribución de edades</h3>
+                    </div>
+                    <div class="chart-wrap"><canvas id="chartAgeGroups"></canvas></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i data-lucide="user" width="15" height="15"></i> Puntos por piloto (Top 10)</h3>
+                    </div>
+                    <div class="chart-wrap"><canvas id="chartPilotPoints"></canvas></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i data-lucide="trending-down" width="15" height="15"></i> Penalizaciones por equipo</h3>
+                    </div>
+                    <div class="chart-wrap"><canvas id="chartPenPointsByTeam"></canvas></div>
                 </div>
             </div>
         </section>

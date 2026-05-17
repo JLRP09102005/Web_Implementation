@@ -616,6 +616,7 @@ class DashboardController {
                 'manufacturers' => ['sp_InsertManufacturerData', ['manufacturer_name','manufacturer_country']],
                 'penalties'     => ['sp_InsertPenaltyWithResult',['penalty_type','reason','penalty_value','penalty_applies_to','id_result','id_pilot']],
                 'users'         => ['sp_InsertUserData',         ['username','email','password_hash','team_id','role']],
+                'results' => ['sp_InsertResultWithPoints', ['position','final_time','id_vehicle','id_race','id_team']],
             ],
             'update' => [
                 'pilots'        => ['sp_UpdatePilotData',        ['id_pilot','pilot_name','pilot_age','id_pilot_category']],
@@ -626,6 +627,7 @@ class DashboardController {
                 'manufacturers' => ['sp_UpdateManufacturerData', ['id_manufacturer','manufacturer_name','manufacturer_country']],
                 'penalties'     => ['sp_UpdatePenaltyWithResult',['id_penalty','penalty_type','reason','penalty_value','penalty_applies_to','id_result','id_pilot']],
                 'users'         => ['sp_UpdateUserData',         ['id_user','username','email','password_hash','team_id','role']],
+                'results' => ['sp_UpdateResultWithPoints', ['id_result','position','final_time','id_vehicle','id_race','id_team']],
             ],
             'delete' => [
                 'pilots'        => ['sp_DeletePilotData',        ['id_pilot']],
@@ -636,6 +638,7 @@ class DashboardController {
                 'manufacturers' => ['sp_DeleteManufacturerData', ['id_manufacturer']],
                 'penalties'     => ['sp_DeletePenaltyData',      ['id_penalty']],
                 'users'         => ['sp_DeleteUserData',         ['id_user']],
+                'results'       => ['sp_DeleteResultData',       ['id_result']],
             ],
         ];
 

@@ -652,7 +652,7 @@ const entityConfig = {
     circuits:      { label: 'Circuitos',       cols: ['circuit_name','country','length_km','direction'],                     keys: ['circuit_name','country','length_km','direction'],                                                                      idKey: 'id_circuit' },
     manufacturers: { label: 'Fabricantes',     cols: ['manufacturer_name','manufacturer_country'],                           keys: ['manufacturer_name','manufacturer_country'],                                                                            idKey: 'id_manufacturer' },
     penalties:     { label: 'Penalizaciones',  cols: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to','id_result','id_pilot'],     idKey: 'id_penalty' },
-    results:       { label: 'Resultados',      cols: ['position','final_time','team_name','model','event_name'],             keys: ['position','final_time','penalty_time','base_points_team','base_points_pilot','penalty_points_team','penalty_points_pilot','id_vehicle','id_race','id_team'], idKey: 'id_result' },
+    results:       { label: 'Resultados',      cols: ['position','final_time','team_name','model','event_name'],             keys: ['position','final_time','id_vehicle','id_race','id_team'],                                                              idKey: 'id_result' },
     users:         { label: 'Usuarios',        cols: ['username', 'email', 'role', 'team_id', 'password_hash'],              keys: ['username', 'email', 'password_hash', 'team_id', 'role'],                                                               idKey: 'id_user' },
 };
 

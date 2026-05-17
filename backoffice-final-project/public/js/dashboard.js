@@ -646,12 +646,12 @@ async function loadManufacturer() {
 // ══════════════════════════════════════════════════════════════════════════════
 const entityConfig = {
     pilots:        { label: 'Pilotos',         cols: ['pilot_name','pilot_age','pilot_category_name'],                       keys: ['pilot_name','pilot_age','id_pilot_category'],                                                                          idKey: 'id_pilot' },
-    teams:         { label: 'Equipos',         cols: ['team_name','mechanics_num','manufacturer_name'],                      keys: ['team_name','mechanics_num','manufacturer_name'],                                                                       idKey: 'id_team' },
+    teams:         { label: 'Equipos',         cols: ['team_name','mechanics_num','manufacturer_name'],                      keys: ['team_name','mechanic_num','id_manufacturer'],                                                                          idKey: 'id_team' },
     vehicles:      { label: 'Vehículos',       cols: ['model','specifications_url'],                                         keys: ['model','specifications_url'],                                                                                          idKey: 'id_vehicle' },
     races:         { label: 'Carreras',        cols: ['event_name','circuit_name','event_date','event_duration'],            keys: ['event_name','event_date','event_duration','id_circuit'],                                                               idKey: 'id_race' },
     circuits:      { label: 'Circuitos',       cols: ['circuit_name','country','length_km','direction'],                     keys: ['circuit_name','country','length_km','direction'],                                                                      idKey: 'id_circuit' },
     manufacturers: { label: 'Fabricantes',     cols: ['manufacturer_name','manufacturer_country'],                           keys: ['manufacturer_name','manufacturer_country'],                                                                            idKey: 'id_manufacturer' },
-    penalties:     { label: 'Penalizaciones',  cols: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to'],                            idKey: 'id_penalty' },
+    penalties:     { label: 'Penalizaciones',  cols: ['penalty_type','reason','penalty_value','penalty_applies_to','team_name','pilot_name','event_name'], keys: ['penalty_type','reason','penalty_value','penalty_applies_to','id_result','id_pilot'],     idKey: 'id_penalty' },
     results:       { label: 'Resultados',      cols: ['position','final_time','team_name','model','event_name'],             keys: ['position','final_time','penalty_time','base_points_team','base_points_pilot','penalty_points_team','penalty_points_pilot','id_vehicle','id_race','id_team'], idKey: 'id_result' },
     users:         { label: 'Usuarios',        cols: ['username', 'email', 'role', 'team_id', 'password_hash'],              keys: ['username', 'email', 'password_hash', 'team_id', 'role'],                                                               idKey: 'id_user' },
 };
@@ -849,7 +849,8 @@ function openEditModal(entity, row) {
 function buildModalFields(entity, cfg, row = null) {
     let html = '';
 
-    // Mapa de campos FK → { endpoint, valueKey, labelKey }
+    const optionalFields = new Set(['id_result', 'id_pilot']);
+
     const fkMap = {
         id_pilot_category: { endpoint: '/api/pilot-categories', valueKey: 'id_pilot_category', labelKey: 'pilot_category_name' },
         id_circuit:        { endpoint: '/api/circuits',         valueKey: 'id_circuit',        labelKey: 'circuit_name' },
@@ -858,28 +859,111 @@ function buildModalFields(entity, cfg, row = null) {
         id_race:           { endpoint: '/api/races',            valueKey: 'id_race',           labelKey: 'event_name' },
         id_team:           { endpoint: '/api/teams',            valueKey: 'id_team',           labelKey: 'team_name' },
         team_id:           { endpoint: '/api/teams',            valueKey: 'id_team',           labelKey: 'team_name' },
+        id_pilot:          { endpoint: '/api/pilots',           valueKey: 'id_pilot',          labelKey: 'pilot_name' },
+    };
+
+    const enumMap = {
+        penalty_type: [
+            { value: 'POINTS', label: 'POINTS' },
+            { value: 'TIME',   label: 'TIME'   },
+            { value: 'DSQ',    label: 'DSQ'    },
+            { value: 'DNF',    label: 'DNF'    },
+        ],
+        penalty_applies_to: [
+            { value: 'TEAM',  label: 'Equipo' },
+            { value: 'PILOT', label: 'Piloto' },
+        ],
+        direction: [
+            { value: 'CLOCKWISE',        label: 'Clockwise'        },
+            { value: 'COUNTERCLOCKWISE', label: 'Counterclockwise' },
+        ],
+        role: [
+            { value: 'software-administrator',      label: 'Software Administrator'      },
+            { value: 'administratorDB',             label: 'Administrator DB'            },
+            { value: 'data-analyst',                label: 'Data Analyst'                },
+            { value: 'race-director',               label: 'Race Director'               },
+            { value: 'commissioner-boss',           label: 'Commissioner Boss'           },
+            { value: 'manufacturer-representative', label: 'Manufacturer Representative' },
+            { value: 'mechanical-boss',             label: 'Mechanical Boss'             },
+            { value: 'team-manager',                label: 'Team Manager'                },
+            { value: 'pilot',                       label: 'Pilot'                       },
+            { value: 'readonly-public',             label: 'Readonly Public'             },
+        ],
+    };
+
+    const aliasMap = {
+        mechanic_num: 'mechanics_num',
     };
 
     cfg.keys.forEach(k => {
-        const label = colLabel(k);
-        const value = row ? (row[k] ?? '') : '';
+        const label      = colLabel(k);
+        const rowKey     = aliasMap[k] ?? k;
+        const value      = row ? (row[rowKey] ?? '') : '';
+        const isRequired = !optionalFields.has(k);
 
-        if (fkMap[k]) {
-            // Campo FK → dropdown
+        // Caso especial id_result → dropdown con listener dinámico para pilotos
+        if (k === 'id_result') {
             html += `
             <div class="field-group">
-                <label class="field-label" for="f_${k}">${label}</label>
-                <select class="field-input" id="f_${k}" name="${k}" required>
-                    <option value="">Cargando...</option>
+                <label class="field-label" for="f_id_result">Resultado <span style="color:var(--text-faint);font-size:0.75rem">(opcional)</span></label>
+                <select class="field-input" id="f_id_result" name="id_result">
+                    <option value="">Sin asignar</option>
                 </select>
             </div>`;
+            apiFetch('/api/results-dropdown').then(items => {
+                const sel = document.getElementById('f_id_result');
+                if (!sel) return;
+                sel.innerHTML = `<option value="">Sin asignar</option>`
+                    + items.map(item => `<option value="${item.id_result}" ${String(item.id_result) === String(value) ? 'selected' : ''}>${esc(item.result_label)}</option>`).join('');
+                sel.addEventListener('change', () => {
+                    const pilotSel = document.getElementById('f_id_pilot');
+                    if (!pilotSel) return;
+                    const selectedResult = sel.value;
+                    if (!selectedResult) {
+                        pilotSel.innerHTML = `<option value="">Sin asignar</option>`;
+                        return;
+                    }
+                    pilotSel.innerHTML = `<option value="">Cargando...</option>`;
+                    apiFetch(`/api/pilots-by-result?id_result=${selectedResult}`)
+                        .then(pilots => {
+                            pilotSel.innerHTML = `<option value="">Sin piloto</option>`
+                                + pilots.map(p => `<option value="${p.id_pilot}">${esc(p.pilot_name)}</option>`).join('');
+                        })
+                        .catch(() => { pilotSel.innerHTML = `<option value="">Error al cargar</option>`; });
+                });
+                // Si ya hay resultado al editar, cargar pilotos automáticamente
+                if (value) {
+                    apiFetch(`/api/pilots-by-result?id_result=${value}`)
+                        .then(pilots => {
+                            const pilotSel = document.getElementById('f_id_pilot');
+                            if (!pilotSel) return;
+                            const pilotValue = row ? (row['id_pilot'] ?? '') : '';
+                            pilotSel.innerHTML = `<option value="">Sin piloto</option>`
+                                + pilots.map(p => `<option value="${p.id_pilot}" ${String(p.id_pilot) === String(pilotValue) ? 'selected' : ''}>${esc(p.pilot_name)}</option>`).join('');
+                        });
+                }
+            }).catch(() => {
+                const sel = document.getElementById('f_id_result');
+                if (sel) sel.innerHTML = `<option value="">Error al cargar</option>`;
+            });
+            return;
+        }
 
+        // Campo FK → dropdown async
+        if (fkMap[k]) {
+            html += `
+            <div class="field-group">
+                <label class="field-label" for="f_${k}">${label} ${!isRequired ? '<span style="color:var(--text-faint);font-size:0.75rem">(opcional)</span>' : ''}</label>
+                <select class="field-input" id="f_${k}" name="${k}" ${isRequired ? 'required' : ''}>
+                    <option value="">Sin asignar</option>
+                </select>
+            </div>`;
             const fk = fkMap[k];
             apiFetch(fk.endpoint).then(items => {
                 const sel = document.getElementById(`f_${k}`);
                 if (!sel) return;
                 const list = Array.isArray(items) ? items : [];
-                sel.innerHTML = `<option value="">Selecciona ${label}</option>`
+                sel.innerHTML = (isRequired ? `<option value="">Selecciona ${label}</option>` : `<option value="">Sin asignar</option>`)
                     + list.map(item => {
                         const selected = String(item[fk.valueKey]) === String(value) ? 'selected' : '';
                         return `<option value="${esc(String(item[fk.valueKey]))}" ${selected}>${esc(item[fk.labelKey])}</option>`;
@@ -888,17 +972,30 @@ function buildModalFields(entity, cfg, row = null) {
                 const sel = document.getElementById(`f_${k}`);
                 if (sel) sel.innerHTML = `<option value="">Error al cargar</option>`;
             });
-
             return;
         }
 
-        // Campo normal
+        // Campo ENUM → dropdown fijo
+        if (enumMap[k]) {
+            const opts = enumMap[k];
+            html += `
+            <div class="field-group">
+                <label class="field-label" for="f_${k}">${label}</label>
+                <select class="field-input" id="f_${k}" name="${k}" ${isRequired ? 'required' : ''}>
+                    <option value="">Selecciona ${label}</option>
+                    ${opts.map(o => `<option value="${o.value}" ${String(o.value) === String(value) ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
+                </select>
+            </div>`;
+            return;
+        }
+
+        // Campo normal → input
         const type = inputType(k);
         const placeholder = (k === 'role') ? 'Ej: team-manager, pilot' : label;
         html += `
         <div class="field-group">
             <label class="field-label" for="f_${k}">${label}</label>
-            <input class="field-input" id="f_${k}" name="${k}" type="${type}" value="${esc(String(value))}" placeholder="${placeholder}" required>
+            <input class="field-input" id="f_${k}" name="${k}" type="${type}" value="${esc(String(value))}" placeholder="${placeholder}" ${isRequired ? 'required' : ''}>
         </div>`;
     });
 

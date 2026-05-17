@@ -278,7 +278,6 @@ class DashboardController {
     }
 
     // ── GET /api/results ─────────────────────────────────────
-
     public function results(array $urlParams): void
     {
         $this->requireAuth();
@@ -299,6 +298,30 @@ class DashboardController {
         } catch (\Throwable $e) {
             http_Response_code(500);
             $this->json(['error' => 500, 'message' => $e->getMessage()]);
+        }
+    }
+
+    // ── GET /api/results-dropdown ─────────────────────────────────────
+    public function resultsDropdown(array $urlParams): void
+    {
+        $this->requireAuth();
+        if (!$this->isAdmin($this->session()['role'])) {
+            $this->json(['error' => 403, 'message' => 'Forbidden']);
+        }
+        try {
+            $pdo  = Container::getInstance()->make('db.readonly');
+            $stmt = $pdo->prepare("
+                SELECT r.id_result,
+                    CONCAT(rac.event_name, ' — ', t.team_name, ' P', r.position) AS result_label
+                FROM results r
+                JOIN races rac ON rac.id_race = r.id_race
+                JOIN teams t   ON t.id_team   = r.id_team
+                ORDER BY rac.event_date, r.position
+            ");
+            $stmt->execute();
+            $this->json($stmt->fetchAll(\PDO::FETCH_ASSOC));
+        } catch (\Throwable $e) {
+            $this->json(['error' => 500, 'message' => $e->getMessage()]); 
         }
     }
 
@@ -533,6 +556,36 @@ class DashboardController {
         } catch (\Throwable $e) { $this->json(['error' => 500, 'message' => $e->getMessage()]); }
     }
 
+    // ── GET /api/pilots-by-result ──────────────────────────────────
+    public function pilotsByResult(array $urlParams): void
+    {
+        $this->requireAuth();
+        if (!$this->isAdmin($this->session()['role'])) {
+            $this->json(['error' => 403, 'message' => 'Forbidden']);
+        }
+        $idResult = (int)($_GET['id_result'] ?? 0);
+        if (!$idResult) {
+            $this->json(['error' => 400, 'message' => 'id_result required']);
+        }
+        try {
+            $pdo  = Container::getInstance()->make('db.readonly');
+            $stmt = $pdo->prepare("
+                SELECT p.id_pilot, p.pilot_name
+                FROM pilots p
+                JOIN pilots_inscriptions pi ON pi.id_pilot = p.id_pilot
+                JOIN results r ON r.id_vehicle = pi.id_vehicle
+                            AND r.id_race    = pi.id_race
+                            AND r.id_team    = pi.id_team
+                WHERE r.id_result = ?
+                ORDER BY p.pilot_name
+            ");
+            $stmt->execute([$idResult]);
+            $this->json($stmt->fetchAll(\PDO::FETCH_ASSOC));
+        } catch (\Throwable $e) {
+            $this->json(['error' => 500, 'message' => $e->getMessage()]);
+        }
+    }
+
     // ── POST /api/admin/crud ─────────────────────────────────
     public function adminCrud(array $urlParams): void
     {
@@ -561,7 +614,7 @@ class DashboardController {
                 'races'         => ['sp_InsertRaceData',         ['event_name','event_date','event_duration','id_circuit']],
                 'circuits'      => ['sp_InsertCircuitData',      ['circuit_name','country','length_km','direction']],
                 'manufacturers' => ['sp_InsertManufacturerData', ['manufacturer_name','manufacturer_country']],
-                'penalties'     => ['sp_InsertPenaltyData',      ['penalty_type','reason','penalty_value','penalty_applies_to']],
+                'penalties'     => ['sp_InsertPenaltyWithResult',['penalty_type','reason','penalty_value','penalty_applies_to','id_result','id_pilot']],
                 'users'         => ['sp_InsertUserData',         ['username','email','password_hash','team_id','role']],
             ],
             'update' => [
@@ -571,6 +624,7 @@ class DashboardController {
                 'races'         => ['sp_UpdateRaceData',         ['id_race','event_name','event_date','event_duration','id_circuit']],
                 'circuits'      => ['sp_UpdateCircuitData',      ['id_circuit','circuit_name','country','length_km','direction']],
                 'manufacturers' => ['sp_UpdateManufacturerData', ['id_manufacturer','manufacturer_name','manufacturer_country']],
+                'penalties'     => ['sp_UpdatePenaltyWithResult',['id_penalty','penalty_type','reason','penalty_value','penalty_applies_to','id_result','id_pilot']],
                 'users'         => ['sp_UpdateUserData',         ['id_user','username','email','password_hash','team_id','role']],
             ],
             'delete' => [
@@ -578,7 +632,7 @@ class DashboardController {
                 'teams'         => ['sp_DeleteTeamData',         ['id_team']],
                 'vehicles'      => ['sp_DeleteVehicleData',      ['id_vehicle']],
                 'races'         => ['sp_DeleteRaceData',         ['id_race']],
-                'circuits'      => ['sp_DeleteCircuitData',      ['circuit_id']],
+                'circuits'      => ['sp_DeleteCircuitData',      ['id_circuit']],
                 'manufacturers' => ['sp_DeleteManufacturerData', ['id_manufacturer']],
                 'penalties'     => ['sp_DeletePenaltyData',      ['id_penalty']],
                 'users'         => ['sp_DeleteUserData',         ['id_user']],
@@ -623,6 +677,13 @@ class DashboardController {
             }
         }
 
+        // id_result e id_pilot opcionales en penalizaciones
+        if ($entity === 'penalties' && in_array($action, ['insert', 'update'])) {
+            $data['id_result'] = !empty($data['id_result']) ? (int)$data['id_result'] : null;
+            $data['id_pilot']  = !empty($data['id_pilot'])  ? (int)$data['id_pilot']  : null;
+        }
+    
+
         $values = [];
         foreach ($params as $p) {
             if (!array_key_exists($p, $data)) {
@@ -632,7 +693,7 @@ class DashboardController {
             $val = $data[$p];
             // Si el campo es un ID o entero, forzar cast
             if (str_starts_with($p, 'id_') || in_array($p, ['circuit_id','pilot_age','mechanic_num','length_km','position','penalty_value','team_id'])) {
-                $val = ($val === '' || !isset($val)) ? null : (int)$val;
+                $val = ($val === '' || $val === null) ? null : (int)$val;
             }
             $values[] = $val;
         }

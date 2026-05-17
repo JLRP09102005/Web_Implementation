@@ -50,6 +50,9 @@ $router->get('/api/stats',        [DashboardController::class, 'stats'],        
 $router->get('/api/admin/list',   [DashboardController::class, 'adminList'],    Router::ROLE_AUTHENTICATED);
 $router->get('/api/pilot-categories', [DashboardController::class, 'pilotCategories'], Router::ROLE_AUTHENTICATED);
 $router->get('/api/circuits',     [DashboardController::class, 'circuits'],     Router::ROLE_AUTHENTICATED);
-$router->get('/api/manufacturers', [DashboardController::class, 'manufacturers'], Router::ROLE_AUTHENTICATED);
+$router->get('/api/manufacturers', [DashboardController::class, 'manufacturers'],      Router::ROLE_AUTHENTICATED);
+$router->get('/api/results-dropdown', [DashboardController::class, 'resultsDropdown'], Router::ROLE_AUTHENTICATED);
+$router->get('/api/pilots-by-result', [DashboardController::class, 'pilotsByResult'],  Router::ROLE_AUTHENTICATED);
+
 $router->post('/api/admin/crud',  [DashboardController::class, 'adminCrud'],    Router::ROLE_AUTHENTICATED);
 $router->post('/api/admin/reveal-hash', [DashboardController::class, 'revealHash'], Router::ROLE_AUTHENTICATED);
